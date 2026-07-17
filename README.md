@@ -77,7 +77,6 @@ The pipeline consists of 11 sequential Python scripts organized in three layers 
 - **conda** or **mamba** — environment management
 - **CUDA Toolkit** (optional, v11.8+) — GPU acceleration for alignment and 3D reconstruction
 - **Xvfb** — off-screen rendering for PyVista on headless servers
-- **wkhtmltopdf** (optional) — HTML-to-PDF rendering for Step 11; `weasyprint` is an alternative Python-native option
 
 ### Required Python Packages
 
@@ -108,8 +107,9 @@ conda activate spateo_pipeline
 # Core dependencies
 pip install stereo spateo scanpy squidpy anndata pyvista harmonypy scrublet scipy pandas numpy
 
-# Report rendering (Step 11)
-pip install jinja2 weasyprint
+# Report rendering (Step 11) — uses Playwright + headless Chromium
+pip install jinja2 playwright pypdf2
+playwright install chromium
 
 # GPU acceleration (optional, requires CUDA 11.8+)
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
@@ -140,10 +140,11 @@ conda install -c conda-forge xvfb
 xvfb-run -a ./Scripts/07_tdr.py [args]
 ```
 
-If WeasyPrint reports missing system libraries for HTML-to-PDF rendering:
+If Playwright's Chromium fails to launch in a headless environment, ensure the system has the required libraries:
 
 ```bash
-conda install -c conda-forge cairo pango gdk-pixbuf libffi
+# Ubuntu/Debian
+sudo apt install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2
 ```
 
 ### GPU Verification
@@ -430,7 +431,8 @@ This pipeline integrates the following excellent open-source tools:
 - [PyVista](https://github.com/pyvista/pyvista) — 3D mesh and volume rendering
 - [AnnData](https://github.com/scverse/anndata) — annotated data matrix format
 - [Jinja2](https://github.com/pallets/jinja) — report templating
-- [WeasyPrint](https://github.com/Kozea/WeasyPrint) — HTML to PDF rendering
+- [Playwright](https://github.com/microsoft/playwright) — headless Chromium HTML-to-PDF rendering
+- [PyPDF2](https://github.com/py-pdf/PyPDF2) — PDF merging and outline extraction
 
 <br />
 <br />
