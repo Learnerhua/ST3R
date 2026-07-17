@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ report.title }}</title>
+  <link rel="icon" href="assets/KMHD_logo_circle.png" type="image/png">
+  <link rel="stylesheet" href="assets/report.css">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- 左侧导航 -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <a href="#project-info" title="返回项目信息">
+        <img src="assets/logo.png" alt="Logo">
+      </a>
+    </div>
+    <div class="sidebar-divider"></div>
+    <ul class="sidebar-menu">
+      <li>
+        <a href="#project-info">1. 项目信息</a>
+        <a href="#methods">2. 分析方法</a>
+        <a href="#methods_spateo" class="sub">2.1 Spateo 软件介绍</a>
+        <a href="#methods_detail" class="sub">2.2 各方法简介</a>
+        <a href="#software_versions" class="sub">2.3 软件版本</a>
+        <a href="#results">3. 分析结果</a>
+        {% for sec in sections %}
+        <a href="#{{ sec.anchor }}" class="sub">3.{{ loop.index }} {{ sec.title }}</a>
+        {% endfor %}
+        <a href="#delivery">4. 报告解读与交付说明</a>
+        <a href="#delivery_files" class="sub">4.1 交付文件说明</a>
+        <a href="#delivery_scope" class="sub">4.2 交付范围说明</a>
+        <a href="#faq">5. 常见问题</a>
+        <a href="#references">6. 参考文献</a>
+      </li>
+    </ul>
+  </nav>
+
+<main class="content">
+
+<!-- ========================= 1. 项目信息 ========================= -->
+<section id="project-info" class="report-section page-break-after">
+  <h1 class="section-title">1. 项目信息</h1>
+  <div class="project-info">
+    <p class="pi-id"><span class="label">项目编号</span><span class="colon">:</span><span class="value">{{ project.ID }}</span></p>
+    <p class="pi-name"><span class="label">项目名称</span><span class="colon">:</span><span class="value">{{ project.name }}</span></p>
+    {% if project.species %}<p class="pi-species"><span class="label">物种来源</span><span class="colon">:</span><span class="value">{{ project.species }}</span></p>{% endif %}
+    <p class="project-desc-row"><span class="label">项目描述</span><span class="colon">:</span><span class="value">{{ project.description }}</span></p>
+    <p class="pi-author"><span class="label">负责人</span><span class="colon">:</span><span class="value">{{ project.author }}</span></p>
+    <p class="pi-date"><span class="label">报告日期</span><span class="colon">:</span><span class="value">{{ project.date }}</span></p>
+  </div>
+
+  {% if slices %}
+  <div class="table-title">表 1-1 切片信息（共 {{ slices|length }} 张切片）</div>
+  <div class="slice-grid">
+    {% for slice_id, sample_id in slices %}
+    <div class="slice-cell">
+      <span class="sample-id"><strong>{{ sample_id }}</strong></span>
+      <span class="slice-arrow">→</span>
+      <span class="slice-id"><strong>{{ slice_id }}</strong></span>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="figure-note">
+    <p><strong>说明：</strong>箭头前的 <strong>样本编号（sample_id）</strong>用于标识数据来源的样本芯片，便于溯源；箭头后的 <strong>切片编号（slice_id）</strong>表示该样本在空间序列中的位置，决定切片对齐与三维重建的堆叠顺序。</p>
+  </div>
+  {% endif %}
+</section>
+
+<!-- ========================= 2. 分析方法 ========================= -->
+<section id="methods" class="report-section page-break-after">
+  <h1 class="section-title">2. 分析方法</h1>
+  <div class="methods-content">
+    <p>{{ methods_intro }}</p>
+
+    <div class="flow-chart">
+      {% for m in methods %}
+      <div class="flow-step">
+        <div class="flow-index">{{ loop.index }}</div>
+        <div class="flow-body">
+          <div class="flow-name">{{ m.name }}</div>
+          <div class="flow-tools">{{ m.tools }}</div>
+        </div>
+      </div>
+      {% if not loop.last %}<div class="flow-arrow">↓</div>{% endif %}
+      {% endfor %}
+    </div>
+
+    <h2 id="methods_spateo">2.1 Spateo 软件介绍</h2>
+    {% if spateo_logo_exists %}
+    <div class="spateo-logo"><img src="{{ spateo_logo }}" alt="Spateo Logo"></div>
+    {% endif %}
+    <p>{{ spateo_intro }}</p>
+
+    {% if workflow_svg_exists %}
+    <div class="workflow-figure">
+      <img src="{{ workflow_svg }}" alt="Spateo 3D reconstruction workflow">
+      <div class="figure-caption">图 2-1 Spateo 三维重建流程示意</div>
+    </div>
+    {% endif %}
+
+    <h2 id="methods_detail">2.2 各方法简介</h2>
+    {% for m in methods %}
+    <div class="method-item">
+      <div class="method-name-line"><span class="method-idx">{{ loop.index }}</span>{{ m.name }}<span class="method-tools">（{{ m.tools }}）</span></div>
+      <p>{{ m.desc }}</p>
+    </div>
+    {% endfor %}
+
+    {% if software_versions %}
+    <h2 id="software_versions">2.3 软件版本</h2>
+    <div class="table-title">表 2-1 主要软件及其功功能</div>
+    <table class="basics-table versions-table">
+      <thead><tr><th>软件</th><th>版本</th><th>功能</th></tr></thead>
+      <tbody>
+        {% for v in software_versions %}
+        <tr><td>{{ v.name }}</td><td>{{ v.version }}</td><td>{{ v.desc or '' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</section>
+
+<!-- ========================= 3. 分析结果 ========================= -->
+<section id="results" class="report-section">
+  <h1 class="section-title">3. 分析结果</h1>
+</section>
+
+{% set fig_global_idx = [0] %}
+{% for sec in sections %}
+<section id="{{ sec.anchor }}" class="report-section result-block">
+  <h2 class="subsection-title">3.{{ loop.index }} {{ sec.title }}</h2>
+  <p class="result-intro">{{ sec.intro }}</p>
+
+  {% for fig in sec.figures %}
+  {% set _ = fig_global_idx.append(1) %}
+  <div class="figure-block">
+    {% if mode == 'html' and fig.interactive_path %}
+      <div class="viz-wrapper">
+        <iframe class="viz3d" src="viz/{{ fig.viz_name }}" loading="lazy"></iframe>
+      </div>
+      <div class="viz-hint">↑ 该三维模型可交互：拖动旋转、滚轮缩放</div>
+    {% else %}
+      <img src="{{ fig.png_relpath }}" alt="{{ fig.title }}">
+    {% endif %}
+    <div class="figure-caption">图 3-{{ fig_global_idx|length - 1 }} {{ fig.title }}</div>
+    <div class="figure-note"><p>{{ fig.caption }}</p></div>
+  </div>
+  {% endfor %}
+
+  {% if sec.morph %}
+  <div class="table-wrapper">
+    <div class="table-title">表 3-2 组织形态学量化指标</div>
+    <table class="metrics-table">
+      <thead><tr><th>指标</th><th>数值</th><th>说明</th></tr></thead>
+      <tbody>
+        {% for label, value, desc in sec.morph %}
+        <tr><td>{{ label }}</td><td>{{ value }}</td><td>{{ desc }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if sec.de_table %}
+  <div class="table-wrapper">
+    <div class="table-title">表 3-1 差异表达结果预览（前 {{ sec.de_table.rows|length }} 行，共 {{ sec.de_table.total }} 条）</div>
+    <table class="de-table">
+      <thead><tr>{% for h in sec.de_table.header %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for row in sec.de_table.rows %}
+        <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="figure-note">
+      <p><strong>列含义：</strong></p>
+      <ul>
+        <li><strong>gene</strong>：差异表达基因名（行索引）；</li>
+        <li><strong>status</strong>：GLM 拟合状态（<code>ok</code> 表示收敛成功，<code>fail</code> 表示未收敛）；</li>
+        <li><strong>family</strong>：使用的指数分布族（如 <code>NB2</code> 负二项分布、<code>Poisson</code>、<code>Gaussian</code>）；</li>
+        <li><strong>log-likelihood</strong>：对数似然值，越大表示模型拟合越好；</li>
+        <li><strong>pval</strong>：沿骨架位置系数的显著性 p 值（越小代表差异越显著）；</li>
+        <li><strong>qval</strong>：BH / FDR 校正后的 q 值（多重检验校正后的显著性指标）。</li>
+      </ul>
+      <p><strong>说明：</strong>完整差异表达结果见 <code>data/glm_data.csv</code>；此处仅展示前若干行用于预览表格结构。</p>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if sec.note %}
+  <aside class="callout-note">
+    <div class="callout-title">注意事项</div>
+    <p>{{ sec.note }}</p>
+  </aside>
+  {% endif %}
+</section>
+{% endfor %}
+
+<!-- ========================= 4. 交付说明 ========================= -->
+<section id="delivery" class="report-section page-break-before">
+  <h1 class="section-title">4. 报告解读与交付说明</h1>
+  <div class="basics-content">
+    <p>{{ delivery.intro }}</p>
+    <h2 id="delivery_files">4.1 交付文件说明</h2>
+    <div class="table-title">表 4-1 交付文件清单</div>
+    <table class="basics-table">
+      <thead><tr><th>文件 / 目录</th><th>说明</th></tr></thead>
+      <tbody>
+        {% for name, desc in delivery.files %}
+        <tr><td><code>{{ name }}</code></td><td>{{ desc }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <h2 id="delivery_scope">4.2 交付范围说明</h2>
+    <p>{{ delivery.note }}</p>
+  </div>
+</section>
+
+<!-- ========================= 5. 常见问题 ========================= -->
+<section id="faq" class="report-section">
+  <h1 class="section-title">5. 常见问题</h1>
+  <div class="faq-content">
+    {% for q, a in faq %}
+    <div class="faq-item">
+      <p class="faq-q">Q{{ loop.index }}. {{ q }}</p>
+      <p class="faq-a">{{ a }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ========================= 6. 参考文献 ========================= -->
+<section id="references" class="report-section">
+  <h1 class="section-title">6. 参考文献</h1>
+  <div class="references">
+    <ol>
+      {% for ref in references %}
+      <li>{{ ref }}</li>
+      {% endfor %}
+    </ol>
+  </div>
+</section>
+
+</main>
+</div>
+</body>
+</html>
