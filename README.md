@@ -4,10 +4,12 @@
 
 A focused 3D reconstruction pipeline for Stereo-seq spatial transcriptomics data, performing multi-slice alignment, 3D tissue modeling, backbone extraction, morphological quantification, and Gaussian Process gene expression interpolation on a dense 3D voxel grid, powered by [Spateo](https://github.com/aristoteleo/spateo-release).
 
+> **中文文档**: [README.zh-CN.md](README.zh-CN.md) · [安装指南中文版](INSTALL.zh-CN.md)
+
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org)
+[![Python 3.8 / 3.10 / 3.12](https://img.shields.io/badge/Python-3.8%20%2F%203.10%20%2F%203.12-blue.svg)](https://www.python.org)
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey.svg)](#)
 [![Powered by Spateo](https://img.shields.io/badge/Powered%20by-Spateo-00A1DE.svg)](https://github.com/aristoteleo/spateo-release)
 
@@ -49,22 +51,23 @@ The pipeline consists of 11 sequential Python scripts organized in three layers 
 | **3D reconstruction core** ⚡ | 06–10 | Alignment → 3D models → backbone → morphology → GP interpolation |
 | **Reporting** | 11 | Aggregate artifacts into HTML/PDF reports |
 
-| Step | Script | Input | Output | Key Tools |
-|------|--------|-------|--------|-----------|
-| 01 | `01_gef2h5ad.py` | GEF file(s) / TSV config | `{sample}.h5ad` | stereo |
-| 02 | `02_concat.py` | H5AD directory | `*_concated.h5ad` | anndata |
-| 03 | `03_preprocess.py` | Concatenated H5AD | `*_preprocessed.h5ad` + QC plots | scanpy, harmonypy, scrublet |
-| 04 | `04_squidpy.py` | Preprocessed H5AD | `*_squidpy.h5ad` + spatial domain plots | squidpy, scanpy |
-| 05 | `05_dataConvert.py` | Squidpy H5AD | `*_compatible.h5ad` | scanpy |
-| 06 | `06_align.py` ⚡ | Compatible H5AD | `*_adata_aligned.h5ad` + alignment plots | spateo, torch (CUDA) |
-| **07** | **`07_tdr.py` ⚡** | Aligned H5AD + compatible H5AD | `*.vtk` (PC/mesh/voxel) + `*_tdr.h5ad` | **spateo.tdr**, pyvista, torch (CUDA) |
-| **08** | **`08_backbone.py`** | TDR H5AD + VTK models | `glm_data.csv` + backbone model | **spateo.tdr**, pyvista |
-| **09** | **`09_morph.py`** | PC + mesh VTK models | `*_morph.json` + KDE plot | **spateo.tdr**, pyvista |
-| **10** | **`10_interpolation.py`** | TDR H5AD + VTK models + GLM CSV | `*_interpolated_gp_adata.h5ad` + plots | **spateo.tdr.gp_interpolation** |
-| 11 | `11_report.py` | Output root (Steps 01-10) | `report.html` + `report.pdf` + assets | jinja2, weasyprint/wkhtmltopdf |
+| Step | Script | Conda Env | Input | Output | Key Tools |
+|------|--------|-----------|-------|--------|-----------|
+| 01 | `01_gef2h5ad.py` | `stereopy` | GEF file(s) / TSV config | `{sample}.h5ad` | stereo |
+| 02 | `02_concat.py` | `scanpy` | H5AD directory | `*_concated.h5ad` | anndata |
+| 03 | `03_preprocess.py` | `scanpy` | Concatenated H5AD | `*_preprocessed.h5ad` + QC plots | scanpy, harmonypy, scrublet |
+| 04 | `04_squidpy.py` | `scanpy` | Preprocessed H5AD | `*_squidpy.h5ad` + spatial domain plots | squidpy, scanpy |
+| 05 | `05_dataConvert.py` | `scanpy` | Squidpy H5AD | `*_compatible.h5ad` | scanpy |
+| 06 | `06_align.py` ⚡ | `spateo_env` | Compatible H5AD | `*_adata_aligned.h5ad` + alignment plots | spateo, torch (CUDA) |
+| **07** | **`07_tdr.py` ⚡** | `spateo_env` | Aligned H5AD + compatible H5AD | `*.vtk` (PC/mesh/voxel) + `*_tdr.h5ad` | **spateo.tdr**, pyvista, torch (CUDA) |
+| **08** | **`08_backbone.py`** | `spateo_env` | TDR H5AD + VTK models | `glm_data.csv` + backbone model | **spateo.tdr**, pyvista |
+| **09** | **`09_morph.py`** | `spateo_env` | PC + mesh VTK models | `*_morph.json` + KDE plot | **spateo.tdr**, pyvista |
+| **10** | **`10_interpolation.py`** | `spateo_env` | TDR H5AD + VTK models + GLM CSV | `*_interpolated_gp_adata.h5ad` + plots | **spateo.tdr.gp_interpolation** |
+| 11 | `11_report.py` | `scanpy` | Output root (Steps 01-10) | `report.html` + `report.pdf` + assets | jinja2, playwright, pypdf2 |
 
 > ⚡ = GPU-accelerated (CUDA optional; falls back to CPU automatically)
 > **Bold rows = the 3D reconstruction core** (Steps 07-10), all built on Spateo's `tdr` module.
+> Step 11 shares the `scanpy` environment (Steps 02-05) — its dependencies (jinja2, playwright, pypdf2) are co-installed.
 > Step 11 does not re-run any analysis — it only aggregates the artifacts produced by Steps 01-10.
 
 ---
@@ -96,64 +99,36 @@ pip install harmonypy scrublet scipy pandas numpy
 
 ## Installation
 
-> ⚠️ **Note**: The installation commands below are **reference examples only**. Package versions and channels may have changed since this pipeline was developed. Always consult the official documentation of each dependency for the current installation instructions.
+> ⚠️ **Note**: Installation commands below are **reference examples only**. For complete step-by-step instructions, see **[INSTALL.md](INSTALL.md)**.
 
-### Option 1: Using Conda (Recommended)
+The pipeline uses 3 conda environments to satisfy strict Python-version constraints:
 
-```bash
-conda create -n spateo_pipeline python=3.10 -y
-conda activate spateo_pipeline
+| Conda env | Python | Steps | Key packages |
+|-----------|--------|-------|--------------|
+| `stereopy` | 3.8 | 01 | stereo, pandas |
+| `scanpy` | 3.12 | 02-05, 11 | scanpy, squidpy, anndata, jinja2, playwright, pypdf2 |
+| `spateo_env` | 3.10 | 06-10 | spateo, torch (CUDA), pyvista |
 
-# Core dependencies
-pip install stereo spateo scanpy squidpy anndata pyvista harmonypy scrublet scipy pandas numpy
-
-# Report rendering (Step 11) — uses Playwright + headless Chromium
-pip install jinja2 playwright pypdf2
-playwright install chromium
-
-# GPU acceleration (optional, requires CUDA 11.8+)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-
-# Off-screen rendering for headless servers
-conda install -c conda-forge xvfb
-```
-
-### Option 2: Manual Installation
-
-Refer to the official documentation for each tool:
-
-- [Spateo](https://spateo-release.readthedocs.io/)
-- [Stereo-seq StereoPy](https://stereopy.readthedocs.io/)
-- [Scanpy](https://scanpy.readthedocs.io/)
-- [Squidpy](https://squidpy.readthedocs.io/)
-- [PyVista](https://docs.pyvista.org/)
-- [Jinja2](https://jinja.palletsprojects.com/)
-- [WeasyPrint](https://weasyprint.org/)
-
-### Platform-Specific Dependencies (Linux)
-
-If PyVista fails to start on a headless server, install Xvfb and run scripts with virtual display:
+### Quick Install
 
 ```bash
-conda install -c conda-forge xvfb
-# Wrap any script invocation:
-xvfb-run -a ./Scripts/07_tdr.py [args]
+mamba env create -f envs/stereopy.yml
+mamba env create -f envs/scanpy.yml
+mamba env create -f envs/spateo_env.yml
+
+# Step 11 requires headless Chromium for PDF rendering
+conda run -n scanpy playwright install chromium
 ```
 
-If Playwright's Chromium fails to launch in a headless environment, ensure the system has the required libraries:
+### Next Steps
+
+After installation, use the bundled `run.sh` wrapper (no setup needed — just `chmod +x run.sh`) to invoke scripts without modifying their hardcoded shebangs:
 
 ```bash
-# Ubuntu/Debian
-sudo apt install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2
+./run.sh 01_gef2h5ad.py -C rawData/sample_list.tsv -BT cell_bins -O Output/01_gef2h5ad
 ```
 
-### GPU Verification
-
-```bash
-python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
-```
-
-If `True`, Steps 06 and 07 will automatically use the GPU. Otherwise, the pipeline falls back to CPU.
+For GPU setup, mirror configuration, troubleshooting, and detailed verification commands, see **[INSTALL.md](INSTALL.md)**.
 
 ---
 
@@ -375,7 +350,9 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 ```
 .
 ├── README.md                       # This file
+├── INSTALL.md                      # Detailed installation guide
 ├── Spateo_pipeline_SOP.pdf         # Detailed standard operating procedure (PDF)
+├── run.sh                          # Conda-aware wrapper to invoke any step
 ├── Scripts/                        # Pipeline scripts (11 sequential steps)
 │   ├── 01_gef2h5ad.py              # Step 01: GEF → H5AD conversion
 │   ├── 02_concat.py                # Step 02: H5AD concatenation
@@ -394,6 +371,10 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 │       ├── templates/              # Jinja2 HTML template + PDF cover
 │       ├── lib/                    # Render, content, and collect helpers
 │       └── assets/                 # CSS, logos, workflow diagram
+├── envs/                           # Conda environment definitions
+│   ├── stereopy.yml
+│   ├── scanpy.yml
+│   └── spateo_env.yml
 └── Sol_test/                       # Reference test run outputs (33 slices)
     ├── 03_preprocess/              # QC plots, UMAP, markers
     ├── 04_squidpy/                 # Spatial domain grids
