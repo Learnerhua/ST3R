@@ -134,33 +134,11 @@ For GPU setup, mirror configuration, troubleshooting, and detailed verification 
 
 ## Usage
 
-The pipeline supports two execution modes. Most users should start with **Mode 1**.
+> ⚠️ **Note**: The shell commands below are **reference examples only**. Parameter values (especially QC thresholds `-minG`, `-maxG`, `-minU`, `-maxU`, `-maxMT`, `-maxHB`) must be tuned to your specific dataset. Always run `./run.sh <script>.py --help` first to view the full parameter list.
 
-### Mode 1 — Agent-driven Execution (Recommended)
+> **Execution model**: The pipeline currently supports **manual step-by-step execution only**. Each step must be invoked explicitly via `./run.sh <script>.py ...` after the previous step's output exists. Do not attempt full-pipeline automation in a single command.
 
-This project is designed to be driven by an AI coding agent (e.g., Claude Code). Each script is self-documenting via its `--help` flag and follows a consistent CLI pattern (`-I/--input`, `-O/--outpath`, `-P/--prefix`).
-
-**Setup:**
-
-1. Open the project root in your AI coding agent.
-2. The agent reads the scripts and walks through every parameter.
-3. Issue a natural-language request — the agent validates the environment and confirms each step before execution.
-
-**Example prompts:**
-
-```
-Run the full Spateo pipeline on a sample list TSV with prefix "Sol_".
-```
-
-```
-Re-run only Steps 08-10 using the existing VTK models in Sol_test/07_tdr/.
-```
-
-### Mode 2 — Manual Step-by-step Execution
-
-> ⚠️ **Note**: The shell commands below are **reference examples only**. Parameter values (especially QC thresholds `-minG`, `-maxG`, `-minU`, `-maxU`, `-maxMT`, `-maxHB`) must be tuned to your specific dataset. Always run `python <script>.py --help` first to view the full parameter list.
-
-#### Quick Start — Run the Full Pipeline
+### Quick Start — Run the Full Pipeline
 
 ```bash
 # Step 01: Convert GEF to H5AD
