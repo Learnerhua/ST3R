@@ -10,7 +10,24 @@ dependencies:
   - pandas>=1.5.0
   - scipy>=1.10.0
   - matplotlib>=3.7.0
+  - scikit-learn>=1.0
+  - scikit-image>=0.19
+  - statsmodels>=0.14
+  - seaborn>=0.12
+  - numba>=0.56
   - pyvista>=0.42.0
+  - h5py>=3.7
+  - tqdm>=4.64
+  - joblib>=1.1
+  - networkx>=3.0
+  - pillow>=9.0
+  - requests>=2.28
+  - openpyxl>=3.0
+  - loompy>=3.0
+  - leidenalg>=0.9
+  - igraph>=0.10
+  - umap-learn>=0.5
+  - shapely>=2.0
   # GPU acceleration (CUDA 11.8). If no GPU, remove the pytorch channel and
   # pip-install torch via the official PyPI index instead.
   - pytorch::pytorch
@@ -18,6 +35,22 @@ dependencies:
   - pytorch::torchaudio
   - pip
   - pip:
-      - spateo>=0.3.0
+      # IMPORTANT: PyPI package name is `spateo-release`, not `spateo`.
+      # This pipeline was originally installed from source via:
+      #   git clone https://github.com/aristoteleo/spateo-release.git
+      #   cd spateo-release && pip install -r requirements.txt
+      #   pip install -r 3d-requirements.txt
+      #   pip install -e .
+      # The list below is the consolidated dependency set required by
+      # Steps 06-10 (3D reconstruction core).
+      - spateo-release>=1.0
       - anndata>=0.9.1
       - scanpy>=1.9.3
+      # GP interpolation (Step 10) dependencies — required by
+      # spateo.tdr.interpolations.interpolation_gp
+      - gpytorch>=1.10
+      - pyro-ppl>=1.9
+      - pynndescent>=0.5
+      # Mesh repair / VTK IO (used by spateo.tdr.models and interpolation_vtk)
+      - pymeshfix>=0.16
+      - vtk>=9.2
