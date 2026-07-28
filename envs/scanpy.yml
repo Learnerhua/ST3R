@@ -1,0 +1,27 @@
+name: scanpy
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy>=1.24.0
+  - pandas>=1.5.0
+  - matplotlib>=3.7.0
+  - pyyaml
+  - pip
+  - pip:
+      # Steps 02-05: preprocessing & domain detection
+      - scanpy>=1.9.3
+      - squidpy>=1.2.2
+      - anndata>=0.9.1
+      - harmonypy>=0.0.6
+      - scrublet>=0.2.3
+      # Step 11: report generation
+      - jinja2>=3.0
+      - playwright>=1.30
+      - pypdf2>=3.0
+
+# After installing, run:
+#     conda run -n scanpy playwright install chromium
+# to fetch the headless Chromium binary used by Step 11's PDF rendering.

@@ -1,0 +1,23 @@
+name: spateo_env
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+  - defaults
+dependencies:
+  - python=3.10
+  - numpy>=1.24.0
+  - pandas>=1.5.0
+  - scipy>=1.10.0
+  - matplotlib>=3.7.0
+  - pyvista>=0.42.0
+  # GPU acceleration (CUDA 11.8). If no GPU, remove the pytorch channel and
+  # pip-install torch via the official PyPI index instead.
+  - pytorch::pytorch
+  - pytorch::torchvision
+  - pytorch::torchaudio
+  - pip
+  - pip:
+      - spateo>=0.3.0
+      - anndata>=0.9.1
+      - scanpy>=1.9.3
