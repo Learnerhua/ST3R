@@ -8,16 +8,26 @@
 </head>
 <body>
 
+{% if mode == 'html' %}
+<!-- 顶部横幅 Banner：fixed，宽 100%，高 10vh -->
+<header class="report-banner">
+  <div class="report-banner__title">{{ report.title }}</div>
+  <img class="report-banner__logo" src="assets/logo.png" alt="Logo">
+</header>
+{% endif %}
+
 <div class="layout">
 
   <!-- 左侧导航 -->
-  <nav class="sidebar">
+  <nav class="sidebar{% if mode == 'html' %} report-sidebar{% endif %}">
+    {% if mode != 'html' %}
     <div class="sidebar-logo">
       <a href="#project-info" title="返回项目信息">
         <img src="assets/logo.png" alt="Logo">
       </a>
     </div>
     <div class="sidebar-divider"></div>
+    {% endif %}
     <ul class="sidebar-menu">
       <li>
         <a href="#project-info">1. 项目信息</a>
