@@ -1,4 +1,4 @@
-#!/oldhome/ouyjh/miniforge3/envs/scanpy/bin/python
+#!/path/to/envs/scanpy/bin/python
 import sys, argparse, warnings, platform, os, math, time
 from datetime import datetime
 import squidpy as sq

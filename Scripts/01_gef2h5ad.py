@@ -1,4 +1,4 @@
-#!/oldhome/ouyjh/miniforge3/envs/Stereopy/bin/python
+#!/path/to/envs/stereopy/bin/python
 import sys, argparse, warnings, platform, os, re, time
 from datetime import datetime
 import pandas as pd

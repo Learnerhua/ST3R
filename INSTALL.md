@@ -9,30 +9,167 @@
 
 ## Table of Contents
 
-1. [Prerequisites](#1-prerequisites)
-2. [Install mamba (recommended)](#2-install-mamba-recommended)
-3. [Create the 3 conda environments](#3-create-the-3-conda-environments)
-4. [Install Chromium for Step 11](#4-install-chromium-for-step-11)
-5. [GPU setup (optional)](#5-gpu-setup-optional)
-6. [Verify installation](#6-verify-installation)
-7. [Run scripts via conda wrapper](#7-run-scripts-via-conda-wrapper)
-8. [Troubleshooting](#8-troubleshooting)
+1. [Choose an installation method](#1-choose-an-installation-method)
+2. [Method A — Use the prebuilt Docker / Singularity image (recommended)](#2-method-a--use-the-prebuilt-docker--singularity-image-recommended)
+3. [Method B — Install conda environments manually](#3-method-b--install-conda-environments-manually)
+4. [Verify installation](#4-verify-installation)
+5. [Run scripts](#5-run-scripts)
+6. [Troubleshooting](#6-troubleshooting)
 
 ---
 
-## 1. Prerequisites
+## 1. Choose an installation method
+
+The pipeline ships with **two equivalent installation paths**:
+
+| Method | Best for | Time to first run |
+|--------|----------|-------------------|
+| **A. Prebuilt image** (Docker / Singularity) | Most users; cross-platform; reproducible | ~5 minutes (only image pull) |
+| **B. Manual conda envs** from `envs/*.yml` | Users who can't run containers, or need to modify dependencies | ~30-45 minutes (full env build) |
+
+If you have Docker or Singularity installed, **Method A is strongly recommended**. The image is identical to the environment used to produce the reference results shipped in `Sol_test/`, so all parameters have been validated against it.
+
+---
+
+## 2. Method A — Use the prebuilt Docker / Singularity image (recommended)
+
+A prebuilt image with all 3 conda environments (`stereopy`, `scanpy`, `spateo_env`) is available on Docker Hub, and the corresponding Singularity `.sif` is archived on Zenodo for long-term reference:
+
+> **Docker Hub** — `oyjhlovedocker/spateo_tdr:v1`
+> <https://hub.docker.com/r/oyjhlovedocker/spateo_tdr>
+>
+> **Zenodo** — `spateo_tdr.sif` (DOI: [10.5281/zenodo.21776415](https://doi.org/10.5281/zenodo.21776415))
+> <https://doi.org/10.5281/zenodo.21776415>
+
+The image is built from this repo's `envs/*.yml` plus the `spateo-release` source tree, so it reproduces the exact environment used to validate the pipeline.
+
+### 2.1 Pull the image
+
+```bash
+# Docker — pull directly from Docker Hub
+docker pull oyjhlovedocker/spateo_tdr:v1
+
+# Singularity / Apptainer — either convert on the fly from Docker Hub
+singularity pull spateo_tdr.sif docker://oyjhlovedocker/spateo_tdr:v1
+
+# ...or download the prebuilt .sif directly from Zenodo (recommended for HPC
+# clusters without Docker Hub access)
+wget -O spateo_tdr.sif https://zenodo.org/records/21776415/files/spateo_tdr.sif
+```
+
+### 2.2 Verify the image
+
+```bash
+# Docker: list envs inside the container
+docker run --rm oyjhlovedocker/spateo_tdr:v1 bash -c \
+    "conda env list && which python"
+
+# Singularity
+singularity exec --cleanenv --no-mount tmp spateo_tdr.sif conda env list
+```
+
+> **Why `--cleanenv` for every step?**
+> - `--cleanenv` clears inherited host env vars (`PYTHONPATH`, `LD_LIBRARY_PATH`, etc.) so the container's conda envs activate cleanly.
+>
+> **Why `--no-mount tmp` only for GPU steps (06-10)?**
+> - The `spateo_env` conda environment was installed into the container's `/tmp` directory at build time. If Singularity bind-mounts the host's `/tmp` over the container's `/tmp`, the conda env is masked and `conda run -n spateo_env ...` fails. `--no-mount tmp` is required **only when invoking `spateo_env`**, i.e. Steps 06-10.
+
+Expected: three envs (`stereopy`, `scanpy`, `spateo_env`), each with its own Python.
+
+### 2.3 Run a single pipeline step
+
+The image keeps the project's directory layout (`/Scripts/`, `/Report_config/`, `/rawData/`, `/Output/`). Mount your host paths with `-v` (Docker) or `-B` (Singularity):
+
+```bash
+# === Docker ===
+docker run --rm \
+    -v /path/to/Pipeline:/Pipeline \
+    -v /path/to/rawData:/rawData:ro \
+    -v /path/to/Output:/Output \
+    oyjhlovedocker/spateo_tdr:v1 \
+    conda run -n stereopy python /Pipeline/Scripts/01_gef2h5ad.py \
+        -C /rawData/sample_list.tsv -BT cell_bins -O /Output/01_gef2h5ad
+
+# === Singularity / Apptainer ===
+singularity exec --cleanenv --no-mount tmp \
+    -B /path/to/Pipeline:/Pipeline \
+    -B /path/to/rawData:/rawData:ro \
+    -B /path/to/Output:/Output \
+    spateo_tdr.sif \
+    conda run -n stereopy python /Pipeline/Scripts/01_gef2h5ad.py \
+        -C /rawData/sample_list.tsv -BT cell_bins -O /Output/01_gef2h5ad
+```
+
+### 2.4 Run GPU-accelerated steps (06 / 07 / 08 / 09 / 10)
+
+Steps 06-10 use CUDA. Pass the GPU through to the container:
+
+```bash
+# Docker — use NVIDIA Container Toolkit
+docker run --rm --gpus all \
+    -v /path/to/Pipeline:/Pipeline \
+    -v /path/to/Output:/Output \
+    oyjhlovedocker/spateo_tdr:v1 \
+    conda run -n spateo_env python /Pipeline/Scripts/07_tdr.py \
+        -AD /Output/06_alignment/Sol_adata_aligned.h5ad \
+        -RD /Output/05_dataConvert/Sol_compatible.h5ad \
+        -P Sol_ -O /Output/07_tdr
+
+# Singularity — use --nv + --no-mount tmp (spateo_env installed in /tmp)
+singularity exec --cleanenv --no-mount tmp --nv \
+    -B /path/to/Pipeline:/Pipeline \
+    -B /path/to/Output:/Output \
+    spateo_tdr.sif \
+    conda run -n spateo_env python /Pipeline/Scripts/07_tdr.py \
+        -AD /Output/06_alignment/Sol_adata_aligned.h5ad \
+        -RD /Output/05_dataConvert/Sol_compatible.h5ad \
+        -P Sol_ -O /Output/07_tdr
+```
+
+### 2.5 Run the full pipeline in one shell
+
+Run Steps 01-11 sequentially via a simple shell loop, activating the correct env per step. Example:
+
+```bash
+PIPELINE=/path/to/Pipeline
+OUTPUT=/path/to/Output
+SLICE_LIST=/path/to/rawData/sample_list.tsv
+
+docker run --rm -v $PIPELINE:$PIPELINE -v /path/to/rawData:/rawData:ro -v $OUTPUT:$OUTPUT \
+    oyjhlovedocker/spateo_tdr:v1 bash -c "
+        conda run -n stereopy   python $PIPELINE/Scripts/01_gef2h5ad.py -C /rawData/sample_list.tsv -BT cell_bins -O $OUTPUT/01_gef2h5ad
+        conda run -n scanpy     python $PIPELINE/Scripts/02_concat.py -I $OUTPUT/01_gef2h5ad -O $OUTPUT/02_concat -P Sol_
+        conda run -n scanpy     python $PIPELINE/Scripts/03_preprocess.py -I $OUTPUT/02_concat/Sol_concated.h5ad -BK slice_id -P Sol_ -O $OUTPUT/03_preprocess -minG 200 -maxG 2000 -minU 200 -maxU 6000 -minC 3 -maxMT 5 -maxHB 5
+        conda run -n scanpy     python $PIPELINE/Scripts/04_squidpy.py -I $OUTPUT/03_preprocess/Sol_preprocessed.h5ad -O $OUTPUT/04_squidpy -LK slice_id -P Sol_ -R 1.2 -WS 0.8
+        conda run -n scanpy     python $PIPELINE/Scripts/05_dataConvert.py -I $OUTPUT/04_squidpy/Sol_squidpy.h5ad -P Sol_ -O $OUTPUT/05_dataConvert
+        conda run -n spateo_env python $PIPELINE/Scripts/06_align.py -I $OUTPUT/05_dataConvert/Sol_compatible.h5ad -P Sol_ -O $OUTPUT/06_alignment
+        conda run -n spateo_env python $PIPELINE/Scripts/07_tdr.py -AD $OUTPUT/06_alignment/Sol_adata_aligned.h5ad -RD $OUTPUT/05_dataConvert/Sol_compatible.h5ad -P Sol_ -O $OUTPUT/07_tdr
+        conda run -n spateo_env python $PIPELINE/Scripts/08_backbone.py -AD $OUTPUT/07_tdr/Sol_tdr.h5ad -PC $OUTPUT/07_tdr/Sol_aligned_pc_model.vtk -MS $OUTPUT/07_tdr/Sol_aligned_mesh_model.vtk -P Sol_ -O $OUTPUT/08_backbone
+        conda run -n spateo_env python $PIPELINE/Scripts/09_morph.py -PC $OUTPUT/07_tdr/Sol_aligned_pc_model.vtk -MS $OUTPUT/07_tdr/Sol_aligned_mesh_model.vtk -O $OUTPUT/09_Morph -P Sol_
+        conda run -n spateo_env python $PIPELINE/Scripts/10_interpolation.py -AD $OUTPUT/07_tdr/Sol_tdr.h5ad -PC $OUTPUT/07_tdr/Sol_aligned_pc_model.vtk -MS $OUTPUT/07_tdr/Sol_aligned_mesh_model.vtk -VX $OUTPUT/07_tdr/Sol_aligned_voxel_model.vtk -GL $OUTPUT/08_backbone/glm_data.csv -O $OUTPUT/10_interpolation -P Sol_ -NG 3 -NS 15
+        conda run -n scanpy     python $PIPELINE/Scripts/11_report.py -I $OUTPUT -P Sol_ -SL /rawData/sample_list.tsv -O $OUTPUT/11_report
+    "
+```
+
+(Singularity users: replace the `docker run ...` prefix with `singularity exec --cleanenv -B ... oyjh_spateo_tdr_v1.sif bash -c "..."`. For lines that run `conda run -n spateo_env ...` (Steps 06-10), also add `--no-mount tmp --nv` — see [§2.2](#22-verify-the-image) for why.)
+
+---
+
+## 3. Method B — Install conda environments manually
+
+Use this method if you can't run containers or need to customize dependency versions.
+
+### 3.1 Prerequisites
 
 | Component | Requirement | Notes |
 |-----------|-------------|-------|
 | OS | Linux (Ubuntu 20.04+ recommended) | macOS and WSL2 also work; Windows native is untested |
-| Conda | Anaconda / Miniconda / Miniforge ≥23.x | [Miniforge](https://github.com/conda-forge/miniforge) is the recommended base distribution |
+| Conda | Anaconda / Miniconda / Miniforge ≥ 23.x | [Miniforge](https://github.com/conda-forge/miniforge) is the recommended base distribution |
 | Disk | ≥ 15 GB free | 3 envs combined ≈ 9-12 GB |
 | RAM | ≥ 16 GB | For datasets with > 100K cells |
 | GPU (optional) | NVIDIA GPU with CUDA 11.8+ driver | Steps 06 and 07 are GPU-accelerated |
 
----
-
-## 2. Install mamba (recommended)
+### 3.2 Install mamba (recommended)
 
 `mamba` is a C++ reimplementation of `conda` and is 10× faster at solving dependencies. Install it into your base environment:
 
@@ -50,17 +187,15 @@ conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/
 conda config --set show_channel_urls yes
 ```
 
----
-
-## 3. Create the 3 conda environments
+### 3.3 Create the 3 conda environments
 
 The pipeline uses three conda environments, each tuned to the Python version its dependencies require:
 
 | Env name | Python | Steps | Key packages |
 |----------|--------|-------|--------------|
-| `stereopy` | 3.8 | 01 | stereo, pandas |
-| `scanpy` | 3.12 | 02-05, 11 | scanpy, squidpy, anndata, harmonypy, scrublet, jinja2, playwright, pypdf2 |
-| `spateo_env` | 3.10 | 06-10 | spateo, torch (CUDA), pyvista |
+| `stereopy` | 3.8 | 01 | stereopy, pandas |
+| `scanpy` | 3.12 | 02-05, 11 | scanpy, squidpy, anndata, jinja2, playwright, pypdf2 |
+| `spateo_env` | 3.10 | 06-10 | spateo-release, torch (CUDA), pyvista |
 
 Run these commands from the repository root:
 
@@ -85,9 +220,7 @@ conda env create -f envs/scanpy.yml
 conda env create -f envs/spateo_env.yml
 ```
 
----
-
-## 4. Install Chromium for Step 11
+### 3.4 Install Chromium for Step 11
 
 Step 11 renders HTML to PDF using headless Chromium via Playwright. After creating the `scanpy` environment, fetch the browser binary:
 
@@ -103,9 +236,7 @@ sudo apt install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
     libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2
 ```
 
----
-
-## 5. GPU setup (optional)
+### 3.5 GPU setup (optional)
 
 Steps 06 (`06_align.py`) and 07 (`07_tdr.py`) use CUDA for acceleration. The `spateo_env.yml` already includes `pytorch::pytorch` from the `pytorch` channel.
 
@@ -131,16 +262,28 @@ If you have an NVIDIA GPU:
 
 ---
 
-## 6. Verify installation
+## 4. Verify installation
 
 Run these quick checks:
 
+**For Method A (container image):**
+
+```bash
+docker run --rm oyjhlovedocker/spateo_tdr:v1 bash -c '
+    conda run -n stereopy   python -c "import stereopy, pandas; print(\"stereopy   : OK\")"
+    conda run -n scanpy     python -c "import scanpy, squidpy, anndata, jinja2; print(\"scanpy     : OK\")"
+    conda run -n spateo_env python -c "import spateo, torch, pyvista; print(\"spateo_env : OK | CUDA =\", torch.cuda.is_available())"
+'
+```
+
+**For Method B (manual conda install):**
+
 ```bash
 # Step 01 environment
-conda run -n stereopy   python -c "import stereo, pandas; print('stereopy   : OK')"
+conda run -n stereopy   python -c "import stereopy, pandas; print('stereopy   : OK')"
 
 # Steps 02-05 + 11 environment
-conda run -n scanpy     python -c "import scanpy, squidpy, anndata, harmonypy, scrublet, jinja2; print('scanpy     : OK')"
+conda run -n scanpy     python -c "import scanpy, squidpy, anndata, jinja2; print('scanpy     : OK')"
 
 # Steps 06-10 environment
 conda run -n spateo_env python -c "import spateo, torch, pyvista, scanpy, anndata; print('spateo_env : OK | CUDA =', torch.cuda.is_available())"
@@ -150,7 +293,25 @@ All three should print `OK`.
 
 ---
 
-## 7. Run scripts via conda wrapper
+## 5. Run scripts
+
+### 5.1 If you used Method A (container)
+
+Invoke scripts directly via `docker run` or `singularity exec` (see [§2.3](#23-run-a-single-pipeline-step) and [§2.4](#24-run-gpu-accelerated-steps-06--07--08--09--10)). The image ships with all 3 conda envs pre-activated by name (`stereopy`, `scanpy`, `spateo_env`).
+
+> Singularity users: always pass `--cleanenv` to every `singularity exec`. Pass `--no-mount tmp --nv` **only** to Steps 06-10 (the `spateo_env` was installed in `/tmp` at build time — see [§2.2](#22-verify-the-image)).
+
+For a full one-shot driver covering all 11 steps, see [§2.5](#25-run-the-full-pipeline-in-one-shell).
+
+### 5.2 If you used Method B (manual conda)
+
+The shipped scripts use **hardcoded shebangs** that point to a placeholder path (e.g. `#!/path/to/envs/Stereopy/bin/python`). You must either edit each shebang to your local path, or use the bundled `run.sh` wrapper (already shipped in the repository root).
+
+A `run.sh` wrapper ships in the repository root that invokes each script via the correct conda environment. Just make it executable:
+
+```bash
+chmod +x run.sh
+```
 
 The shipped scripts use **hardcoded shebangs** that point to a placeholder path (e.g. `#!/path/to/envs/Stereopy/bin/python`). You must either edit each shebang to your local path, or use the bundled `run.sh` wrapper (already shipped in the repository root).
 
@@ -250,10 +411,10 @@ After this, you can invoke scripts directly:
 
 ---
 
-## 8. Troubleshooting
+## 6. Troubleshooting
 
 ### `CondaHTTPError` / SSL errors
-Configure a mirror (see step 2) or check your network proxy:
+Configure a mirror (see [§3.2](#32-install-mamba-recommended)) or check your network proxy:
 ```bash
 conda config --show channels
 mamba clean --all
@@ -304,6 +465,16 @@ conda run -n scanpy python Scripts/11_report.py ...
 mamba env remove -n stereopy
 mamba env create -f envs/stereopy.yml
 ```
+
+### Docker: `permission denied` while binding mounts
+On Linux, add your user to the `docker` group, or prefix the command with `sudo`. Files written into mounted volumes will be owned by `root` unless you also pass `--user "$(id -u):$(id -g)"`.
+
+### Singularity: `FATAL: container creation failed`
+If the host kernel is too old or missing required capabilities, try `--writable-tmpfs` or update Singularity to ≥ 3.10.
+
+### GPU not visible inside the container
+- **Docker**: install [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) and restart the Docker daemon. Verify with `docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi`.
+- **Singularity**: ensure the host has the NVIDIA driver loaded (`nvidia-smi` works on host), then use `singularity exec --cleanenv --no-mount tmp --nv ...` for GPU steps (06-10). Steps 01-05 and 11 only need `--cleanenv`.
 
 ---
 

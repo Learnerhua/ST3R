@@ -1,4 +1,4 @@
-#!/oldhome/ouyjh/miniforge3/envs/old_base/bin/python
+#!/path/to/envs/scanpy/bin/python
 import sys, argparse, warnings, platform, os, re, time, shutil
 from datetime import datetime
 import yaml

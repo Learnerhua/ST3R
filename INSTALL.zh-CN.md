@@ -7,18 +7,156 @@
 
 ## 目录
 
-1. [前置条件](#1-前置条件)
-2. [安装 mamba（推荐）](#2-安装-mamba推荐)
-3. [创建 3 个 conda 环境](#3-创建-3-个-conda-环境)
-4. [为 Step 11 安装 Chromium](#4-为-step-11-安装-chromium)
-5. [GPU 配置（可选）](#5-gpu-配置可选)
-6. [验证安装](#6-验证安装)
-7. [通过 conda 包装脚本运行脚本](#7-通过-conda-包装脚本运行脚本)
-8. [故障排查](#8-故障排查)
+1. [选择安装方式](#1-选择安装方式)
+2. [方式 A — 使用预构建的 Docker / Singularity 镜像（推荐）](#2-方式-a--使用预构建的-docker--singularity-镜像推荐)
+3. [方式 B — 手动安装 conda 环境](#3-方式-b--手动安装-conda-环境)
+4. [验证安装](#4-验证安装)
+5. [运行脚本](#5-运行脚本)
+6. [故障排查](#6-故障排查)
 
 ---
 
-## 1. 前置条件
+## 1. 选择安装方式
+
+流水线提供**两种等效的安装路径**：
+
+| 方式 | 适用场景 | 首次运行耗时 |
+|------|---------|-------------|
+| **A. 预构建镜像**（Docker / Singularity） | 大多数用户；跨平台；环境可复现 | ~5 分钟（仅拉取镜像） |
+| **B. 手动 conda 环境**（基于 `envs/*.yml`） | 无法运行容器的用户，或需定制依赖版本的用户 | ~30-45 分钟（完整构建） |
+
+如果您已安装 Docker 或 Singularity，**强烈推荐方式 A**。该镜像与生成 `Sol_test/` 参考结果的环境完全一致，所有参数均已通过它验证。
+
+---
+
+## 2. 方式 A — 使用预构建的 Docker / Singularity 镜像（推荐）
+
+Docker Hub 上提供了预构建镜像，内置全部 3 个 conda 环境（`stereopy`、`scanpy`、`spateo_env`）；对应的 Singularity `.sif` 文件归档在 Zenodo，可作为长期引用源：
+
+> **Docker Hub** — `oyjhlovedocker/spateo_tdr:v1`
+> <https://hub.docker.com/r/oyjhlovedocker/spateo_tdr>
+>
+> **Zenodo** — `spateo_tdr.sif`（DOI：[10.5281/zenodo.21776415](https://doi.org/10.5281/zenodo.21776415)）
+> <https://doi.org/10.5281/zenodo.21776415>
+
+镜像基于本仓库的 `envs/*.yml` 与 `spateo-release` 源码构建，可完整复现用于验证流水线的环境。
+
+### 2.1 拉取镜像
+
+```bash
+# Docker — 直接从 Docker Hub 拉取
+docker pull oyjhlovedocker/spateo_tdr:v1
+
+# Singularity / Apptainer — 从 Docker Hub 实时转换
+singularity pull spateo_tdr.sif docker://oyjhlovedocker/spateo_tdr:v1
+
+# 或直接从 Zenodo 下载预构建的 .sif（推荐用于无法访问 Docker Hub 的 HPC 集群）
+wget -O spateo_tdr.sif https://zenodo.org/records/21776415/files/spateo_tdr.sif
+```
+
+### 2.2 验证镜像
+
+```bash
+# Docker：列出容器内的环境
+docker run --rm oyjhlovedocker/spateo_tdr:v1 bash -c \
+    "conda env list && which python"
+
+# Singularity
+singularity exec --cleanenv --no-mount tmp spateo_tdr.sif conda env list
+```
+
+> **为什么所有步骤都需要 `--cleanenv`？**
+> - `--cleanenv`：清除从宿主机继承的环境变量（如 `PYTHONPATH`、`LD_LIBRARY_PATH` 等），让容器内的 conda 环境可以干净地激活。
+>
+> **为什么仅 GPU 步骤（06-10）需要 `--no-mount tmp`？**
+> - 镜像构建时，`spateo_env` conda 环境被安装在了容器的 `/tmp` 目录下。若 Singularity 把宿主机的 `/tmp` 绑定覆盖容器的 `/tmp`，该 conda 环境会被遮蔽，`conda run -n spateo_env ...` 会失败。`--no-mount tmp` **仅在调用 `spateo_env` 时（即 Steps 06-10）才需要**。
+
+预期输出：3 个环境（`stereopy`、`scanpy`、`spateo_env`），各自有独立的 Python。
+
+### 2.3 运行单个流水线步骤
+
+镜像保留了项目目录布局（`/Scripts/`、`/Report_config/`、`/rawData/`、`/Output/`）。使用 `-v`（Docker）或 `-B`（Singularity）挂载宿主机目录：
+
+```bash
+# === Docker ===
+docker run --rm \
+    -v /path/to/Pipeline:/Pipeline \
+    -v /path/to/rawData:/rawData:ro \
+    -v /path/to/Output:/Output \
+    oyjhlovedocker/spateo_tdr:v1 \
+    conda run -n stereopy python /Pipeline/Scripts/01_gef2h5ad.py \
+        -C /rawData/sample_list.tsv -BT cell_bins -O /Output/01_gef2h5ad
+
+# === Singularity / Apptainer ===
+singularity exec --cleanenv --no-mount tmp \
+    -B /path/to/Pipeline:/Pipeline \
+    -B /path/to/rawData:/rawData:ro \
+    -B /path/to/Output:/Output \
+    spateo_tdr.sif \
+    conda run -n stereopy python /Pipeline/Scripts/01_gef2h5ad.py \
+        -C /rawData/sample_list.tsv -BT cell_bins -O /Output/01_gef2h5ad
+```
+
+### 2.4 运行 GPU 加速步骤（06 / 07 / 08 / 09 / 10）
+
+Steps 06-10 使用 CUDA 加速。需要将 GPU 透传给容器：
+
+```bash
+# Docker — 使用 NVIDIA Container Toolkit
+docker run --rm --gpus all \
+    -v /path/to/Pipeline:/Pipeline \
+    -v /path/to/Output:/Output \
+    oyjhlovedocker/spateo_tdr:v1 \
+    conda run -n spateo_env python /Pipeline/Scripts/07_tdr.py \
+        -AD /Output/06_alignment/Sol_adata_aligned.h5ad \
+        -RD /Output/05_dataConvert/Sol_compatible.h5ad \
+        -P Sol_ -O /Output/07_tdr
+
+# Singularity — 使用 --nv + --no-mount tmp（spateo_env 安装在 /tmp）
+singularity exec --cleanenv --no-mount tmp --nv \
+    -B /path/to/Pipeline:/Pipeline \
+    -B /path/to/Output:/Output \
+    spateo_tdr.sif \
+    conda run -n spateo_env python /Pipeline/Scripts/07_tdr.py \
+        -AD /Output/06_alignment/Sol_adata_aligned.h5ad \
+        -RD /Output/05_dataConvert/Sol_compatible.h5ad \
+        -P Sol_ -O /Output/07_tdr
+```
+
+### 2.5 一键运行全流程
+
+按顺序串行执行 Steps 01-11，每步自动切换到正确的环境。Docker 示例：
+
+```bash
+PIPELINE=/path/to/Pipeline
+OUTPUT=/path/to/Output
+SLICE_LIST=/path/to/rawData/sample_list.tsv
+
+docker run --rm -v $PIPELINE:$PIPELINE -v /path/to/rawData:/rawData:ro -v $OUTPUT:$OUTPUT \
+    oyjhlovedocker/spateo_tdr:v1 bash -c "
+        conda run -n stereopy   python $PIPELINE/Scripts/01_gef2h5ad.py -C /rawData/sample_list.tsv -BT cell_bins -O $OUTPUT/01_gef2h5ad
+        conda run -n scanpy     python $PIPELINE/Scripts/02_concat.py -I $OUTPUT/01_gef2h5ad -O $OUTPUT/02_concat -P Sol_
+        conda run -n scanpy     python $PIPELINE/Scripts/03_preprocess.py -I $OUTPUT/02_concat/Sol_concated.h5ad -BK slice_id -P Sol_ -O $OUTPUT/03_preprocess -minG 200 -maxG 2000 -minU 200 -maxU 6000 -minC 3 -maxMT 5 -maxHB 5
+        conda run -n scanpy     python $PIPELINE/Scripts/04_squidpy.py -I $OUTPUT/03_preprocess/Sol_preprocessed.h5ad -O $OUTPUT/04_squidpy -LK slice_id -P Sol_ -R 1.2 -WS 0.8
+        conda run -n scanpy     python $PIPELINE/Scripts/05_dataConvert.py -I $OUTPUT/04_squidpy/Sol_squidpy.h5ad -P Sol_ -O $OUTPUT/05_dataConvert
+        conda run -n spateo_env python $PIPELINE/Scripts/06_align.py -I $OUTPUT/05_dataConvert/Sol_compatible.h5ad -P Sol_ -O $OUTPUT/06_alignment
+        conda run -n spateo_env python $PIPELINE/Scripts/07_tdr.py -AD $OUTPUT/06_alignment/Sol_adata_aligned.h5ad -RD $OUTPUT/05_dataConvert/Sol_compatible.h5ad -P Sol_ -O $OUTPUT/07_tdr
+        conda run -n spateo_env python $PIPELINE/Scripts/08_backbone.py -AD $OUTPUT/07_tdr/Sol_tdr.h5ad -PC $OUTPUT/07_tdr/Sol_aligned_pc_model.vtk -MS $OUTPUT/07_tdr/Sol_aligned_mesh_model.vtk -P Sol_ -O $OUTPUT/08_backbone
+        conda run -n spateo_env python $PIPELINE/Scripts/09_morph.py -PC $OUTPUT/07_tdr/Sol_aligned_pc_model.vtk -MS $OUTPUT/07_tdr/Sol_aligned_mesh_model.vtk -O $OUTPUT/09_Morph -P Sol_
+        conda run -n spateo_env python $PIPELINE/Scripts/10_interpolation.py -AD $OUTPUT/07_tdr/Sol_tdr.h5ad -PC $OUTPUT/07_tdr/Sol_aligned_pc_model.vtk -MS $OUTPUT/07_tdr/Sol_aligned_mesh_model.vtk -VX $OUTPUT/07_tdr/Sol_aligned_voxel_model.vtk -GL $OUTPUT/08_backbone/glm_data.csv -O $OUTPUT/10_interpolation -P Sol_ -NG 3 -NS 15
+        conda run -n scanpy     python $PIPELINE/Scripts/11_report.py -I $OUTPUT -P Sol_ -SL /rawData/sample_list.tsv -O $OUTPUT/11_report
+    "
+```
+
+（Singularity 用户：将 `docker run ...` 前缀替换为 `singularity exec --cleanenv -B ... oyjh_spateo_tdr_v1.sif bash -c "..."`。对于运行 `conda run -n spateo_env ...` 的各行（Steps 06-10），再加上 `--no-mount tmp --nv` —— 原因见 [§2.2](#22-验证镜像)。）
+
+---
+
+## 3. 方式 B — 手动安装 conda 环境
+
+如果无法运行容器，或需要自定义依赖版本，请使用此方式。
+
+### 3.1 前置条件
 
 | 组件 | 要求 | 备注 |
 |------|------|------|
@@ -28,9 +166,7 @@
 | 内存 | ≥ 16 GB | 用于 > 100K 细胞的数据集 |
 | GPU（可选） | 支持 CUDA 11.8+ 的 NVIDIA GPU | Steps 06 和 07 支持 GPU 加速 |
 
----
-
-## 2. 安装 mamba（推荐）
+### 3.2 安装 mamba（推荐）
 
 `mamba` 是 `conda` 的 C++ 重实现，依赖解析速度快 10 倍。在基础环境中安装：
 
@@ -48,17 +184,15 @@ conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/
 conda config --set show_channel_urls yes
 ```
 
----
-
-## 3. 创建 3 个 conda 环境
+### 3.3 创建 3 个 conda 环境
 
 流水线使用三个 conda 环境，每个环境根据其依赖所要求的 Python 版本进行调优：
 
 | 环境名 | Python | 步骤 | 关键包 |
 |--------|--------|------|--------|
-| `stereopy` | 3.8 | 01 | stereo, pandas |
-| `scanpy` | 3.12 | 02-05, 11 | scanpy, squidpy, anndata, harmonypy, scrublet, jinja2, playwright, pypdf2 |
-| `spateo_env` | 3.10 | 06-10 | spateo, torch (CUDA), pyvista |
+| `stereopy` | 3.8 | 01 | stereopy, pandas |
+| `scanpy` | 3.12 | 02-05, 11 | scanpy, squidpy, anndata, jinja2, playwright, pypdf2 |
+| `spateo_env` | 3.10 | 06-10 | spateo-release, torch (CUDA), pyvista |
 
 在仓库根目录下依次执行：
 
@@ -83,9 +217,7 @@ conda env create -f envs/scanpy.yml
 conda env create -f envs/spateo_env.yml
 ```
 
----
-
-## 4. 为 Step 11 安装 Chromium
+### 3.4 为 Step 11 安装 Chromium
 
 Step 11 通过 Playwright 调用 headless Chromium 将 HTML 渲染为 PDF。创建 `scanpy` 环境后，下载浏览器二进制：
 
@@ -101,9 +233,7 @@ sudo apt install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
     libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2
 ```
 
----
-
-## 5. GPU 配置（可选）
+### 3.5 GPU 配置（可选）
 
 Steps 06（`06_align.py`）和 07（`07_tdr.py`）使用 CUDA 加速。`spateo_env.yml` 中已包含来自 `pytorch` channel 的 `pytorch::pytorch`。
 
@@ -129,16 +259,28 @@ Steps 06（`06_align.py`）和 07（`07_tdr.py`）使用 CUDA 加速。`spateo_e
 
 ---
 
-## 6. 验证安装
+## 4. 验证安装
 
 运行以下快速检查：
 
+**方式 A（容器镜像）：**
+
+```bash
+docker run --rm oyjhlovedocker/spateo_tdr:v1 bash -c '
+    conda run -n stereopy   python -c "import stereopy, pandas; print(\"stereopy   : OK\")"
+    conda run -n scanpy     python -c "import scanpy, squidpy, anndata, jinja2; print(\"scanpy     : OK\")"
+    conda run -n spateo_env python -c "import spateo, torch, pyvista; print(\"spateo_env : OK | CUDA =\", torch.cuda.is_available())"
+'
+```
+
+**方式 B（手动安装）：**
+
 ```bash
 # Step 01 环境
-conda run -n stereopy   python -c "import stereo, pandas; print('stereopy   : OK')"
+conda run -n stereopy   python -c "import stereopy, pandas; print('stereopy   : OK')"
 
 # Steps 02-05 + 11 环境
-conda run -n scanpy     python -c "import scanpy, squidpy, anndata, harmonypy, scrublet, jinja2; print('scanpy     : OK')"
+conda run -n scanpy     python -c "import scanpy, squidpy, anndata, jinja2; print('scanpy     : OK')"
 
 # Steps 06-10 环境
 conda run -n spateo_env python -c "import spateo, torch, pyvista, scanpy, anndata; print('spateo_env : OK | CUDA =', torch.cuda.is_available())"
@@ -148,7 +290,25 @@ conda run -n spateo_env python -c "import spateo, torch, pyvista, scanpy, anndat
 
 ---
 
-## 7. 通过 conda 包装脚本运行脚本
+## 5. 运行脚本
+
+### 5.1 若使用方式 A（容器）
+
+通过 `docker run` 或 `singularity exec` 直接调用脚本（参见 [§2.3](#23-运行单个流水线步骤) 和 [§2.4](#24-运行-gpu-加速步骤06--07--08--09--10)）。镜像内 3 个 conda 环境（`stereopy`、`scanpy`、`spateo_env`）已就绪，可直接通过名称调用。
+
+> Singularity 用户：所有 `singularity exec` 都需加 `--cleanenv`。仅 Steps 06-10 需再加 `--no-mount tmp --nv`（构建镜像时 `spateo_env` 安装在 `/tmp` 下 —— 详见 [§2.2](#22-验证镜像)）。
+
+若需一键驱动全流程，请参见 [§2.5](#25-一键运行全流程)。
+
+### 5.2 若使用方式 B（手动安装 conda）
+
+随仓库分发的脚本使用**硬编码的 shebang**，指向占位符路径（如 `#!/path/to/envs/Stereopy/bin/python`）。您必须将每个 shebang 改为本地路径，或使用随仓库根目录一同分发的 `run.sh` 包装脚本。
+
+仓库根目录已自带 `run.sh` 包装脚本，通过正确的 conda 环境调用每个脚本。您无需自行创建，只需赋予执行权限：
+
+```bash
+chmod +x run.sh
+```
 
 随仓库分发的脚本使用**硬编码的 shebang**，指向占位符路径（如 `#!/path/to/envs/Stereopy/bin/python`）。您必须将每个 shebang 改为本地路径，或使用随仓库根目录一同分发的 `run.sh` 包装脚本。
 
@@ -249,10 +409,10 @@ sed -i '1c\#!/path/to/envs/spateo_env/bin/python' Scripts/06_align.py Scripts/07
 
 ---
 
-## 8. 故障排查
+## 6. 故障排查
 
 ### `CondaHTTPError` / SSL 错误
-配置镜像源（见第 2 节）或检查网络代理：
+配置镜像源（见 [§3.2](#32-安装-mamba推荐)）或检查网络代理：
 ```bash
 conda config --show channels
 mamba clean --all
@@ -303,6 +463,16 @@ conda run -n scanpy python Scripts/11_report.py ...
 mamba env remove -n stereopy
 mamba env create -f envs/stereopy.yml
 ```
+
+### Docker：挂载卷时出现 `permission denied`
+在 Linux 上，请将当前用户加入 `docker` 组，或在命令前加 `sudo`。写入挂载卷的文件默认属主为 `root`，可通过 `--user "$(id -u):$(id -g)"` 改为当前用户。
+
+### Singularity：`FATAL: container creation failed`
+宿主内核版本过旧或缺少必要能力时，尝试加 `--writable-tmpfs`，或升级 Singularity 到 ≥ 3.10。
+
+### 容器内 GPU 不可见
+- **Docker**：安装 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) 并重启 Docker 守护进程。使用 `docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi` 验证。
+- **Singularity**：确认宿主机已加载 NVIDIA 驱动（`nvidia-smi` 在宿主机可运行），GPU 步骤（06-10）使用 `singularity exec --cleanenv --no-mount tmp --nv ...`；Steps 01-05 与 11 仅需 `--cleanenv`。
 
 ---
 

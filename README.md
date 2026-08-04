@@ -13,9 +13,10 @@ A focused 3D reconstruction pipeline for Stereo-seq spatial transcriptomics data
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey.svg)](#)
 [![Powered by Spateo](https://img.shields.io/badge/Powered%20by-Spateo-00A1DE.svg)](https://github.com/aristoteleo/spateo-release)
 
+[![Docker Image](https://img.shields.io/badge/Docker-oyjhlovedocker%2Fspateo__tdr-2496ED.svg?logo=docker&logoColor=white)](https://hub.docker.com/r/oyjhlovedocker/spateo_tdr)
+[![Singularity .sif on Zenodo](https://img.shields.io/badge/Zenodo-10.5281%2Fzenodo.21776415-blue.svg?logo=zenodo&logoColor=white)](https://doi.org/10.5281/zenodo.21776415)
 [![Stereo-seq](https://img.shields.io/badge/Compatible-Stereo--seq-FF6B6B)](#)
 [![GPU Accelerated](https://img.shields.io/badge/GPU-CUDA%20Optional-76B900.svg)](#installation)
-[![Steps: 11](https://img.shields.io/badge/Pipeline-11%20Steps-orange.svg)](#pipeline-architecture)
 
 </div>
 
@@ -84,7 +85,7 @@ The pipeline consists of 11 sequential Python scripts organized in three layers 
 ### Required Python Packages
 
 ```bash
-pip install stereo spateo scanpy squidpy anndata pyvista
+pip install stereopy spateo-release scanpy squidpy anndata pyvista
 pip install harmonypy scrublet scipy pandas numpy
 ```
 
@@ -99,17 +100,52 @@ pip install harmonypy scrublet scipy pandas numpy
 
 ## Installation
 
-> ⚠️ **Note**: Installation commands below are **reference examples only**. For complete step-by-step instructions, see **[INSTALL.md](INSTALL.md)**.
+> ⚠️ **Note**: For complete step-by-step instructions, see **[INSTALL.md](INSTALL.md)**.
+> The container image is the recommended path — it reproduces the exact environment used to validate `Sol_test/`.
 
-The pipeline uses 3 conda environments to satisfy strict Python-version constraints:
+### Option 1 — Prebuilt container image (recommended)
 
-| Conda env | Python | Steps | Key packages |
-|-----------|--------|-------|--------------|
-| `stereopy` | 3.8 | 01 | stereo, pandas |
-| `scanpy` | 3.12 | 02-05, 11 | scanpy, squidpy, anndata, jinja2, playwright, pypdf2 |
-| `spateo_env` | 3.10 | 06-10 | spateo, torch (CUDA), pyvista |
+A prebuilt image with all 3 conda environments (`stereopy`, `scanpy`, `spateo_env`) is available on Docker Hub; the corresponding Singularity `.sif` is archived on Zenodo ([10.5281/zenodo.21776415](https://doi.org/10.5281/zenodo.21776415)) for long-term reference.
 
-### Quick Install
+```bash
+# Docker
+docker pull oyjhlovedocker/spateo_tdr:v1
+
+# Singularity / Apptainer — convert on the fly from Docker Hub
+singularity pull spateo_tdr.sif docker://oyjhlovedocker/spateo_tdr:v1
+
+# ...or download the prebuilt .sif directly from Zenodo (recommended for HPC
+# clusters without Docker Hub access)
+wget -O spateo_tdr.sif https://zenodo.org/records/21776415/files/spateo_tdr.sif
+```
+
+> **Note for Singularity users**: Always pass `--cleanenv` to every `singularity exec`. Pass `--no-mount tmp --nv` **only** to Steps 06-10, because the `spateo_env` conda environment was installed in the container's `/tmp` at build time and would be masked if Singularity bind-mounts the host `/tmp`. See [INSTALL.md §2.2](INSTALL.md#22-verify-the-image) for details.
+
+Then invoke any step (GPU steps need `--gpus all` / `--nv`):
+
+```bash
+# Docker — Step 01
+docker run --rm \
+    -v $(pwd):/work -w /work \
+    oyjhlovedocker/spateo_tdr:v1 \
+    conda run -n stereopy python /work/Scripts/01_gef2h5ad.py \
+        -C /work/rawData/sample_list.tsv -BT cell_bins -O /work/Output/01_gef2h5ad
+
+# Docker — Step 07 (GPU)
+docker run --rm --gpus all \
+    -v $(pwd):/work -w /work \
+    oyjhlovedocker/spateo_tdr:v1 \
+    conda run -n spateo_env python /work/Scripts/07_tdr.py \
+        -AD /work/Output/06_alignment/Sol_adata_aligned.h5ad \
+        -RD /work/Output/05_dataConvert/Sol_compatible.h5ad \
+        -P Sol_ -O /work/Output/07_tdr
+```
+
+A one-shot driver script is included in the full pipeline reference (see [INSTALL.md §2.5](INSTALL.md#25-run-the-full-pipeline-in-one-shell)).
+
+### Option 2 — Manual conda install
+
+If you can't run containers, create the 3 conda environments from the bundled yml files:
 
 ```bash
 mamba env create -f envs/stereopy.yml
@@ -120,7 +156,11 @@ mamba env create -f envs/spateo_env.yml
 conda run -n scanpy playwright install chromium
 ```
 
-### Next Steps
+| Conda env | Python | Steps | Key packages |
+|-----------|--------|-------|--------------|
+| `stereopy` | 3.8 | 01 | stereopy, pandas |
+| `scanpy` | 3.12 | 02-05, 11 | scanpy, squidpy, anndata, jinja2, playwright, pypdf2 |
+| `spateo_env` | 3.10 | 06-10 | spateo-release, torch (CUDA), pyvista |
 
 After installation, use the bundled `run.sh` wrapper (no setup needed — just `chmod +x run.sh`) to invoke scripts without modifying their hardcoded shebangs:
 

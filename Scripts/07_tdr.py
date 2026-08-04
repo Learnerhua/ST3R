@@ -1,4 +1,4 @@
-#!/oldhome/ouyjh/miniforge3/envs/spateo_env/bin/python
+#!/path/to/envs/spateo_env/bin/python
 import sys, argparse, warnings, os, time, math
 from datetime import datetime
 
