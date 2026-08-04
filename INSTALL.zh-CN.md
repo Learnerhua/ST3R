@@ -75,7 +75,15 @@ singularity exec --cleanenv --no-mount tmp spateo_tdr.sif conda env list
 
 ### 2.3 运行单个流水线步骤
 
-镜像保留了项目目录布局（`/Scripts/`、`/Report_config/`、`/rawData/`、`/Output/`）。使用 `-v`（Docker）或 `-B`（Singularity）挂载宿主机目录：
+镜像仅包含已安装的 conda 环境，运行流水线时需要您自行挂载宿主机目录。下面所有示例使用如下约定（与宿主机的实际路径无关，可按需替换为任何自定义路径）：
+
+| 容器内路径 | 宿主机路径 | 用途 |
+|-----------|----------|------|
+| `/Pipeline` | `/path/to/Pipeline` | 仓库根目录（含 `Scripts/`、`Report_config/`、`envs/`、`run.sh`） |
+| `/rawData` | `/path/to/rawData` | 原始输入数据（GEF 文件、`sample_list.tsv`），只读挂载 |
+| `/Output` | `/path/to/Output` | 流水线产物输出目录（各步骤的可写结果） |
+
+> **前提**：本节示例假定您已熟悉 Docker / Singularity 的 `-v` / `-B` 卷挂载机制，以及 `--gpus all` / `--nv` 等容器化 GPU 透传方法。如不熟悉，请先参考对应官方文档。
 
 ```bash
 # === Docker ===

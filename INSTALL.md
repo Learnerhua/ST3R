@@ -78,7 +78,15 @@ Expected: three envs (`stereopy`, `scanpy`, `spateo_env`), each with its own Pyt
 
 ### 2.3 Run a single pipeline step
 
-The image keeps the project's directory layout (`/Scripts/`, `/Report_config/`, `/rawData/`, `/Output/`). Mount your host paths with `-v` (Docker) or `-B` (Singularity):
+The image ships only the pre-installed conda environments; it does **not** contain the pipeline repo, raw data, or output. You mount host paths at runtime with `-v` (Docker) or `-B` (Singularity). The examples below use these conventions (replace with your actual paths):
+
+| Container path | Host path | Purpose |
+|---------------|-----------|---------|
+| `/Pipeline` | `/path/to/Pipeline` | Repo root (contains `Scripts/`, `Report_config/`, `envs/`, `run.sh`) |
+| `/rawData` | `/path/to/rawData` | Input data (GEF files, `sample_list.tsv`) — mounted read-only |
+| `/Output` | `/path/to/Output` | Output dir for all step artifacts — mounted read-write |
+
+> **Prerequisite**: This section assumes familiarity with container volume mounts (`-v` / `-B`) and GPU passthrough (`--gpus all` / `--nv`). If you are new to Docker / Singularity, consult their official docs first.
 
 ```bash
 # === Docker ===
