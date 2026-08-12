@@ -165,7 +165,10 @@ def main():
 
     print("Total number of cells in adata:", adata.n_obs)
     print("Number of backbone nodes:", len(np.unique(aligned_pc.point_data["backbone"])))
-    adata.obs["backbone"] = aligned_pc.point_data["backbone"]
+    # Convert pyvista_ndarray -> numpy array before assigning to obs.
+    # pyvista 0.43 point_data returns pyvista_ndarray; anndata 0.9.2 has no
+    # writer registered for it, causing IORegistryError on write_h5ad.
+    adata.obs["backbone"] = np.asarray(aligned_pc.point_data["backbone"])
     print("Mapping to adata successful, number of cells:", adata.n_obs)
     print("Cell count per node:\n", adata.obs["backbone"].value_counts().sort_index())
     print()

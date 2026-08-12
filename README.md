@@ -56,7 +56,7 @@ The pipeline consists of 11 sequential Python scripts organized in three layers 
 |------|--------|-----------|-------|--------|-----------|
 | 01 | `01_gef2h5ad.py` | `stereopy` | GEF file(s) / TSV config | `{sample}.h5ad` | stereo |
 | 02 | `02_concat.py` | `scanpy` | H5AD directory | `*_concated.h5ad` | anndata |
-| 03 | `03_preprocess.py` | `scanpy` | Concatenated H5AD | `*_preprocessed.h5ad` + QC plots | scanpy, harmonypy, scrublet |
+| 03 | `03_preprocess.py` | `scanpy` | Concatenated H5AD | `*_preprocessed.h5ad` + QC plots | scanpy, harmonypy |
 | 04 | `04_squidpy.py` | `scanpy` | Preprocessed H5AD | `*_squidpy.h5ad` + spatial domain plots | squidpy, scanpy |
 | 05 | `05_dataConvert.py` | `scanpy` | Squidpy H5AD | `*_compatible.h5ad` | scanpy |
 | 06 | `06_align.py` ⚡ | `spateo_env` | Compatible H5AD | `*_adata_aligned.h5ad` + alignment plots | spateo, torch (CUDA) |
@@ -86,7 +86,7 @@ The pipeline consists of 11 sequential Python scripts organized in three layers 
 
 ```bash
 pip install stereopy spateo-release scanpy squidpy anndata pyvista
-pip install harmonypy scrublet scipy pandas numpy
+pip install harmonypy scipy pandas numpy
 ```
 
 ### Input Data Convention
@@ -174,7 +174,9 @@ For GPU setup, mirror configuration, troubleshooting, and detailed verification 
 
 ## Usage
 
-> ⚠️ **Note**: The shell commands below are **reference examples only**. Parameter values (especially QC thresholds `-minG`, `-maxG`, `-minU`, `-maxU`, `-maxMT`, `-maxHB`) must be tuned to your specific dataset. Always run `./run.sh <script>.py --help` first to view the full parameter list.
+> ⚠️ **Note**: The shell commands below are **reference examples only**. Parameter values (especially QC-related `-minC`, `-maxMT`) must be tuned to your specific dataset. Always run `./run.sh <script>.py --help` first to view the full parameter list.
+
+> **v2 change**: Step 03 no longer requires manual thresholds `-minG/-maxG/-minU/-maxU/-maxHB` — n_genes / total_counts cutoffs are derived automatically per slice (default 1%/99% quantiles, tunable via `-qL`/`-qH`). Only `-minC` (min cells per gene) and `-maxMT` (mitochondrial % cap) are needed. **v2 does not change the runtime environment — the published Docker/Singularity image (`oyjhlovedocker/spateo_tdr:v1`) remains applicable.**
 
 > **Execution model**: The pipeline currently supports **manual step-by-step execution only**. Each step must be invoked explicitly via `./run.sh <script>.py ...` after the previous step's output exists. Do not attempt full-pipeline automation in a single command.
 
@@ -187,9 +189,9 @@ For GPU setup, mirror configuration, troubleshooting, and detailed verification 
 # Step 02: Concatenate H5AD files
 ./Scripts/02_concat.py -I Output/01_gef2h5ad -O Output/02_concat -P Sol_
 
-# Step 03: Preprocess (set QC thresholds appropriate for your data)
+# Step 03: Preprocess (QC thresholds auto-computed per slice; optional -qL/-qH to adjust)
 ./Scripts/03_preprocess.py -I Output/02_concat/Sol_concated.h5ad -BK slice_id -P Sol_ -O Output/03_preprocess \
-    -minG 200 -maxG 2000 -minU 200 -maxU 6000 -minC 3 -maxMT 5 -maxHB 5
+    -minC 3 -maxMT 10
 
 # Step 04: Spatial domain detection
 ./Scripts/04_squidpy.py -I Output/03_preprocess/Sol_preprocessed.h5ad -LK slice_id -P Sol_ -O Output/04_squidpy \
@@ -374,7 +376,7 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 ├── Scripts/                        # Pipeline scripts (11 sequential steps)
 │   ├── 01_gef2h5ad.py              # Step 01: GEF → H5AD conversion
 │   ├── 02_concat.py                # Step 02: H5AD concatenation
-│   ├── 03_preprocess.py            # Step 03: QC + normalization + clustering
+│   ├── 03_preprocess.py            # Step 03: per-slice QC + normalization + clustering
 │   ├── 04_squidpy.py               # Step 04: Spatial domain detection
 │   ├── 05_dataConvert.py           # Step 05: H5AD cleaning
 │   ├── 06_align.py                 # Step 06: 3D alignment (GPU)

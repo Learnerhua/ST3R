@@ -123,10 +123,12 @@ def main():
     parser.add_argument(
         "--join",
         type=str,
-        default="outer",
+        default="inner",
         choices=["outer", "inner"],
         metavar="JOIN",
-        help="Join method: 'outer' keeps all genes, 'inner' keeps only common genes (default: outer)"
+        help="Join method: 'outer' keeps all genes, 'inner' keeps only common genes "
+             "(default: inner). Inner avoids sparse-zero dilution when merging slices "
+             "with non-overlapping gene panels."
     )
 
     parser.add_argument(

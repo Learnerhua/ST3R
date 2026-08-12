@@ -144,7 +144,7 @@ docker run --rm -v $PIPELINE:$PIPELINE -v /path/to/rawData:/rawData:ro -v $OUTPU
     oyjhlovedocker/spateo_tdr:v1 bash -c "
         conda run -n stereopy   python $PIPELINE/Scripts/01_gef2h5ad.py -C /rawData/sample_list.tsv -BT cell_bins -O $OUTPUT/01_gef2h5ad
         conda run -n scanpy     python $PIPELINE/Scripts/02_concat.py -I $OUTPUT/01_gef2h5ad -O $OUTPUT/02_concat -P Sol_
-        conda run -n scanpy     python $PIPELINE/Scripts/03_preprocess.py -I $OUTPUT/02_concat/Sol_concated.h5ad -BK slice_id -P Sol_ -O $OUTPUT/03_preprocess -minG 200 -maxG 2000 -minU 200 -maxU 6000 -minC 3 -maxMT 5 -maxHB 5
+        conda run -n scanpy     python $PIPELINE/Scripts/03_preprocess.py -I $OUTPUT/02_concat/Sol_concated.h5ad -BK slice_id -P Sol_ -O $OUTPUT/03_preprocess -minC 3 -maxMT 10
         conda run -n scanpy     python $PIPELINE/Scripts/04_squidpy.py -I $OUTPUT/03_preprocess/Sol_preprocessed.h5ad -O $OUTPUT/04_squidpy -LK slice_id -P Sol_ -R 1.2 -WS 0.8
         conda run -n scanpy     python $PIPELINE/Scripts/05_dataConvert.py -I $OUTPUT/04_squidpy/Sol_squidpy.h5ad -P Sol_ -O $OUTPUT/05_dataConvert
         conda run -n spateo_env python $PIPELINE/Scripts/06_align.py -I $OUTPUT/05_dataConvert/Sol_compatible.h5ad -P Sol_ -O $OUTPUT/06_alignment
@@ -371,7 +371,7 @@ exec conda run -n "$ENV" \
 
 ```bash
 ./run.sh 01_gef2h5ad.py -C rawData/sample_list.tsv -BT cell_bins -O Output/01_gef2h5ad
-./run.sh 03_preprocess.py -I Output/02_concat/Sol_concated.h5ad -BK slice_id -P Sol_ -O Output/03_preprocess -minG 200 -maxG 2000 -minU 200 -maxU 6000 -minC 3 -maxMT 5 -maxHB 5
+./run.sh 03_preprocess.py -I Output/02_concat/Sol_concated.h5ad -BK slice_id -P Sol_ -O Output/03_preprocess -minC 3 -maxMT 10
 ./run.sh 07_tdr.py -AD Output/06_alignment/Sol_adata_aligned.h5ad -RD Output/05_dataConvert/Sol_compatible.h5ad -P Sol_ -O Output/07_tdr
 ./run.sh 11_report.py -I Output -P Sol_ -SL rawData/sample_list.tsv -O Output/11_report
 ```

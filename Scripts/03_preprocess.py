@@ -14,7 +14,7 @@ logging.getLogger('fontTools').setLevel(logging.WARNING)
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Single-cell RNA-seq analysis pipeline: QC -> Doublet detection -> "
+        description="Single-cell RNA-seq analysis pipeline: per-sample QC -> "
                     "Normalization -> Feature selection -> PCA -> Batch correction -> "
                     "Clustering -> Marker gene identification"
     )
@@ -27,25 +27,24 @@ def main():
     parser.add_argument("-P", "--prefix", type=str, default="", metavar="PREFIX",
                         help="Prefix for output files (default: none)")
 
-    # QC arguments (no default values - user must specify after viewing QC plots)
-    parser.add_argument("-minG", "--min_genes", type=int, default=None, metavar="INT",
-                        help="Minimum number of genes per cell")
-    parser.add_argument("-maxG", "--max_genes", type=int, default=None, metavar="INT",
-                        help="Maximum number of genes per cell")
-    parser.add_argument("-minU", "--min_counts", type=int, default=None, metavar="INT",
-                        help="Minimum UMI counts per cell")
-    parser.add_argument("-maxU", "--max_counts", type=int, default=None, metavar="INT",
-                        help="Maximum UMI counts per cell")
-    parser.add_argument("-minC", "--min_cells", type=int, default=None, metavar="INT",
-                        help="Minimum cells per gene")
-    parser.add_argument("-maxMT", "--max_mt", type=float, default=None, metavar="FLOAT",
-                        help="Maximum mitochondrial percentage")
-    parser.add_argument("-maxHB", "--max_hb", type=float, default=None, metavar="FLOAT",
-                        help="Maximum hemoglobin percentage")
+    # QC arguments.
+    #   n_genes / total_counts thresholds are derived per slice from quantiles,
+    #   so no manual min/max is needed for those. Only global filters remain:
+    #     -minC  : drop genes detected in fewer than N cells (per-slice aware via batch_key)
+    #     -maxMT : drop cells with mitochondrial % above threshold
+    parser.add_argument("-minC", "--min_cells", type=int, default=3, metavar="INT",
+                        help="Minimum cells per gene (default: 3)")
+    parser.add_argument("-maxMT", "--max_mt", type=float, default=10.0, metavar="FLOAT",
+                        help="Maximum mitochondrial percentage (default: 10.0)")
+    parser.add_argument("-qL", "--quantile_low", type=float, default=0.01, metavar="FLOAT",
+                        help="Per-slice lower quantile for n_genes / total_counts (default: 0.01)")
+    parser.add_argument("-qH", "--quantile_high", type=float, default=0.99, metavar="FLOAT",
+                        help="Per-slice upper quantile for n_genes / total_counts (default: 0.99)")
 
     # Batch correction arguments
-    parser.add_argument("-BK", "--batch_key", type=str, default=None, metavar="STR",
-                        help="Batch key in adata.obs for batch correction (default: None)")
+    parser.add_argument("-BK", "--batch_key", type=str, default="slice_id", metavar="STR",
+                        help="Batch key in adata.obs for per-slice QC and batch correction "
+                             "(default: slice_id)")
 
     # Clustering arguments
     parser.add_argument("-nPC", "--n_pcs", type=int, default=30, metavar="INT",
@@ -65,21 +64,18 @@ def main():
 
     args = parser.parse_args()
 
-    input_file   = args.input
-    outpath      = args.outpath
-    prefix       = args.prefix
-    min_genes    = args.min_genes
-    max_genes    = args.max_genes
-    min_counts   = args.min_counts
-    max_counts   = args.max_counts
-    min_cells    = args.min_cells
-    max_mt       = args.max_mt
-    max_hb       = args.max_hb
-    batch_key    = args.batch_key
-    n_pcs        = args.n_pcs
-    n_top_genes  = args.n_top_genes
-    resolution   = args.resolution
-    dpi          = args.dpi
+    input_file    = args.input
+    outpath       = args.outpath
+    prefix        = args.prefix
+    min_cells     = args.min_cells
+    max_mt        = args.max_mt
+    quantile_low  = args.quantile_low
+    quantile_high = args.quantile_high
+    batch_key     = args.batch_key
+    n_pcs         = args.n_pcs
+    n_top_genes   = args.n_top_genes
+    resolution    = args.resolution
+    dpi           = args.dpi
 
     # ------------------------------------------------------------------ #
     # Setup environment                                                    #
@@ -120,20 +116,19 @@ def main():
     print(">>> Step 2: Quality control\n")
 
     adata.var['mt'] = adata.var_names.str.upper().str.startswith('MT-')
-    adata.var["hb"] = adata.var_names.str.upper().str.match(r"^HB(?!P)")
     adata.var["ribo"] = adata.var_names.str.upper().str.startswith(("RPS", "RPL"))
-    sc.pp.calculate_qc_metrics(adata, qc_vars=['mt', 'hb', 'ribo'],
+    sc.pp.calculate_qc_metrics(adata, qc_vars=['mt', 'ribo'],
                                percent_top=None, log1p=False, inplace=True)
 
     # Plot QC metrics before filtering
-    features = ['n_genes_by_counts', 'total_counts', 'pct_counts_mt', 'pct_counts_hb']
+    features = ['n_genes_by_counts', 'total_counts', 'pct_counts_mt']
 
-    if batch_key is not None and batch_key in adata.obs.columns:
+    if batch_key in adata.obs.columns:
         # Plot with batch grouping
         print("Plotting QC metrics grouped by: {}\n".format(batch_key))
 
-        # Violin plots grouped by batch (2x2 grid, no stripplot)
-        fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 10))
+        # Violin plots grouped by batch (1x3 grid, no stripplot)
+        fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(15, 5))
         for ax, feature in zip(axes.flatten(), features):
             sc.pl.violin(adata, keys=feature, groupby=batch_key, stripplot=False,
                          rotation=45, ax=ax, show=False)
@@ -152,7 +147,7 @@ def main():
         else:
             colors = plt.cm.hsv(np.linspace(0, 1, n_batches, endpoint=False))
 
-        fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(18, 7))
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(14, 7))
         batches = adata.obs[batch_key].astype('category')
         batch_categories = batches.cat.categories
 
@@ -160,7 +155,6 @@ def main():
         for i, (x, y, title) in enumerate([
             ('total_counts', 'n_genes_by_counts', 'n_genes vs total_counts'),
             ('total_counts', 'pct_counts_mt', 'pct_mt vs total_counts'),
-            ('total_counts', 'pct_counts_hb', 'pct_hb vs total_counts')
         ]):
             for j, batch in enumerate(batch_categories):
                 mask = batches == batch
@@ -181,7 +175,7 @@ def main():
         plt.close()
     else:
         # Plot without grouping
-        fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 10))
+        fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(15, 5))
         for i, feature in enumerate(features):
             sc.pl.violin(adata, keys=feature, stripplot=False, ax=axes.flatten()[i], show=False)
         plt.tight_layout()
@@ -189,59 +183,84 @@ def main():
         plt.savefig("{}/{}before_QC_violin.pdf".format(outpath, prefix), dpi=dpi, bbox_inches='tight')
         plt.close()
 
-        fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(18, 5))
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(14, 5))
         sc.pl.scatter(adata, x='total_counts', y='n_genes_by_counts', ax=ax[0], show=False)
         sc.pl.scatter(adata, x='total_counts', y='pct_counts_mt', ax=ax[1], show=False)
-        sc.pl.scatter(adata, x='total_counts', y='pct_counts_hb', ax=ax[2], show=False)
         plt.tight_layout()
         plt.savefig("{}/{}before_QC_scatter.png".format(outpath, prefix), dpi=dpi, bbox_inches='tight')
         plt.savefig("{}/{}before_QC_scatter.pdf".format(outpath, prefix), dpi=dpi, bbox_inches='tight')
         plt.close()
 
-    # Check if all QC parameters are provided
-    qc_params = {
-        'min_genes': min_genes,
-        'max_genes': max_genes,
-        'min_counts': min_counts,
-        'max_counts': max_counts,
-        'min_cells': min_cells,
-        'max_mt': max_mt,
-        'max_hb': max_hb
-    }
-    missing_params = [k for k, v in qc_params.items() if v is None]
+    # Per-slice QC: derive n_genes / total_counts cutoffs from quantiles.
+    # Rationale: stereo-seq slices differ in sequencing depth / tissue density,
+    # so a global threshold either over-filters shallow slices or under-filters
+    # deep ones. Using per-slice quantiles (default 1%/99%) keeps the bulk of
+    # each slice while removing only the obvious outliers.
+    print("Per-slice QC: n_genes / total_counts quantiles [{:.0%}, {:.0%}], mt<={}\n".format(
+        quantile_low, quantile_high, max_mt))
 
-    if missing_params:
-        print("QC plots saved. Please specify the following parameters:")
-        for p in missing_params:
-            print("  --{} / -{}".format(p, {
-                'min_genes': 'minG', 'max_genes': 'maxG',
-                'min_counts': 'minU', 'max_counts': 'maxU',
-                'min_cells': 'minC', 'max_mt': 'maxMT', 'max_hb': 'maxHB'
-            }[p]))
-        print("\nExample: python {} -I {} -O {} -minG 200 -maxG 2500 -minU 500 -maxU 10000 -minC 3 -maxMT 5 -maxHB 5\n".format(
-              sys.argv[0], input_file, outpath))
-        sys.exit(0)
+    n_cells_before = adata.n_obs
+    if batch_key in adata.obs.columns:
+        # keep_mask starts all-False; each slice's keep decision is WRITTEN into
+        # its own positions (NOT AND-accumulated, which would zero out other
+        # slices' cells and leave 0 cells total).
+        keep_mask = np.zeros(adata.n_obs, dtype=bool)
+        threshold_table = []
+        for sl in adata.obs[batch_key].astype('category').cat.categories:
+            sl_mask = (adata.obs[batch_key] == sl).values
+            n_sl = int(sl_mask.sum())
+            if n_sl < 10:
+                # Too few cells to estimate quantiles — keep all cells in this slice.
+                keep_mask[sl_mask] = True
+                threshold_table.append((sl, n_sl, n_sl, '-', '-', '-', '-'))
+                continue
+            ng_q = np.quantile(adata.obs.loc[sl_mask, 'n_genes_by_counts'], [quantile_low, quantile_high])
+            tc_q = np.quantile(adata.obs.loc[sl_mask, 'total_counts'],    [quantile_low, quantile_high])
+            ng_lo, ng_hi = int(ng_q[0]), int(ng_q[1])
+            tc_lo, tc_hi = int(tc_q[0]), int(tc_q[1])
+            sl_keep = (
+                (adata.obs['n_genes_by_counts'] >= ng_lo) &
+                (adata.obs['n_genes_by_counts'] <= ng_hi) &
+                (adata.obs['total_counts']      >= tc_lo) &
+                (adata.obs['total_counts']      <= tc_hi)
+            ).values
+            keep_mask[sl_mask] = sl_keep[sl_mask]
+            n_kept = int(sl_keep[sl_mask].sum())
+            threshold_table.append((sl, n_sl, n_kept, ng_lo, ng_hi, tc_lo, tc_hi))
 
-    print("QC thresholds: genes [{}, {}], counts [{}, {}], mt<={}, hb={}\n".format(
-          min_genes, max_genes, min_counts, max_counts, max_mt, max_hb))
+        # Apply the global mt cutoff (mt% is meaningful per-cell, not per-slice).
+        keep_mask &= (adata.obs['pct_counts_mt'] <= max_mt)
 
-    # Apply filtering
+        # Print the per-slice threshold table
+        print("Per-slice thresholds:")
+        print("  {:<20s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s}".format(
+            "slice", "n_in", "n_keep", "ng_lo", "ng_hi", "tc_lo", "tc_hi"))
+        for row in threshold_table:
+            print("  {:<20s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s}".format(*[str(x) for x in row]))
+        print()
+    else:
+        # No batch_key — fall back to global quantiles (single-slice or unlabeled input).
+        ng_q = np.quantile(adata.obs['n_genes_by_counts'], [quantile_low, quantile_high])
+        tc_q = np.quantile(adata.obs['total_counts'],     [quantile_low, quantile_high])
+        print("Global thresholds (no -BK): n_genes [{:.0f}, {:.0f}], total_counts [{:.0f}, {:.0f}], mt<={}\n".format(
+            ng_q[0], ng_q[1], tc_q[0], tc_q[1], max_mt))
+        keep_mask = (
+            (adata.obs['n_genes_by_counts'] >= ng_q[0]) &
+            (adata.obs['n_genes_by_counts'] <= ng_q[1]) &
+            (adata.obs['total_counts']      >= tc_q[0]) &
+            (adata.obs['total_counts']      <= tc_q[1]) &
+            (adata.obs['pct_counts_mt']      <= max_mt)
+        ).values
+
     print("Before filtering: {} cells x {} genes".format(adata.n_obs, adata.n_vars))
     sc.pp.filter_genes(adata, min_cells=min_cells)
-    adata = adata[
-        (adata.obs['n_genes_by_counts'] >= min_genes) &
-        (adata.obs['n_genes_by_counts'] <= max_genes) &
-        (adata.obs['total_counts'] >= min_counts) &
-        (adata.obs['total_counts'] <= max_counts) &
-        (adata.obs['pct_counts_mt'] <= max_mt) &
-        (adata.obs['pct_counts_hb'] <= max_hb), :
-    ].copy()
+    adata = adata[keep_mask].copy()
     print("After filtering : {} cells x {} genes\n".format(adata.n_obs, adata.n_vars))
 
     # Plot QC metrics after filtering
-    if batch_key is not None and batch_key in adata.obs.columns:
-        # Violin plots grouped by batch (2x2 grid, no stripplot)
-        fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 10))
+    if batch_key in adata.obs.columns:
+        # Violin plots grouped by batch (1x3 grid, no stripplot)
+        fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(15, 5))
         for ax, feature in zip(axes.flatten(), features):
             sc.pl.violin(adata, keys=feature, groupby=batch_key, stripplot=False,
                          rotation=45, ax=ax, show=False)
@@ -260,7 +279,7 @@ def main():
         else:
             colors = plt.cm.hsv(np.linspace(0, 1, n_batches, endpoint=False))
 
-        fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(18, 7))
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(14, 7))
         batches = adata.obs[batch_key].astype('category')
         batch_categories = batches.cat.categories
 
@@ -268,7 +287,6 @@ def main():
         for i, (x, y, title) in enumerate([
             ('total_counts', 'n_genes_by_counts', 'n_genes vs total_counts'),
             ('total_counts', 'pct_counts_mt', 'pct_mt vs total_counts'),
-            ('total_counts', 'pct_counts_hb', 'pct_hb vs total_counts')
         ]):
             for j, batch in enumerate(batch_categories):
                 mask = batches == batch
@@ -288,7 +306,7 @@ def main():
         plt.savefig("{}/{}after_QC_scatter.pdf".format(outpath, prefix), dpi=dpi, bbox_inches='tight')
         plt.close()
     else:
-        fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 10))
+        fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(15, 5))
         for i, feature in enumerate(features):
             sc.pl.violin(adata, keys=feature, stripplot=False, ax=axes.flatten()[i], show=False)
         plt.tight_layout()
@@ -296,48 +314,61 @@ def main():
         plt.savefig("{}/{}after_QC_violin.pdf".format(outpath, prefix), dpi=dpi, bbox_inches='tight')
         plt.close()
 
-        fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(18, 5))
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(14, 5))
         sc.pl.scatter(adata, x='total_counts', y='n_genes_by_counts', ax=ax[0], show=False)
         sc.pl.scatter(adata, x='total_counts', y='pct_counts_mt', ax=ax[1], show=False)
-        sc.pl.scatter(adata, x='total_counts', y='pct_counts_hb', ax=ax[2], show=False)
         plt.tight_layout()
         plt.savefig("{}/{}after_QC_scatter.png".format(outpath, prefix), dpi=dpi, bbox_inches='tight')
         plt.savefig("{}/{}after_QC_scatter.pdf".format(outpath, prefix), dpi=dpi, bbox_inches='tight')
         plt.close()
 
     # ------------------------------------------------------------------ #
-    # Step 3: Doublet detection                                            #
+    # Step 3: Normalization (per-slice)                                     #
     # ------------------------------------------------------------------ #
-    print(">>> Step 3: Doublet detection (Scrublet)\n")
-
-    if batch_key is None:
-        sc.pp.scrublet(adata)
-    elif batch_key in adata.obs.columns:
-        sc.pp.scrublet(adata, batch_key=batch_key)
-    else:
-        print("Error: batch_key '{}' not found in adata.obs.columns".format(batch_key), file=sys.stderr)
-        sys.exit(1)
-
-    n_doublets = adata.obs["predicted_doublet"].sum()
-    print("Detected {} doublets ({:.2f}%)".format(n_doublets, 100*n_doublets/adata.n_obs))
-    adata = adata[adata.obs["predicted_doublet"] == False].copy()
-    print("After removal  : {} cells\n".format(adata.n_obs))
-
-    # ------------------------------------------------------------------ #
-    # Step 4: Normalization                                                #
-    # ------------------------------------------------------------------ #
-    print(">>> Step 4: Normalization\n")
+    # Per-slice normalize_total + log1p, then reassemble into the merged
+    # adata. Each slice's cells are normalized to the same library size
+    # (target_sum=1e4) within that slice — prevents shallow slices from
+    # being dragged down by deeper slices when normalize runs on the merged
+    # matrix. counts / log1p layers are still kept on the merged adata for
+    # downstream HVG / PCA / Harmony, identical to before.
+    print(">>> Step 3: Normalization (per-slice)\n")
 
     adata.layers['counts'] = adata.X.copy()
-    sc.pp.normalize_total(adata, target_sum=1e4)
-    sc.pp.log1p(adata)
+
+    if batch_key in adata.obs.columns:
+        n_slices = adata.obs[batch_key].astype('category').cat.categories.size
+        print(f"Normalizing {n_slices} slices independently (target_sum=1e4 + log1p)\n")
+        # Build a normalized matrix in slice order, then assign back.
+        X_norm_chunks = []
+        for sl in adata.obs[batch_key].astype('category').cat.categories:
+            sl_mask = (adata.obs[batch_key] == sl).values
+            sub = adata[sl_mask].copy()
+            sc.pp.normalize_total(sub, target_sum=1e4)
+            sc.pp.log1p(sub)
+            X_norm_chunks.append(sub.X)
+        # Concatenate in original obs order — chunk order matches the order
+        # `cat.categories` walked, which may differ from obs order. Reorder
+        # by reassigning via a single per-slice write into the merged X.
+        X_new = adata.X.copy()
+        for sl, chunk in zip(
+            adata.obs[batch_key].astype('category').cat.categories,
+            X_norm_chunks,
+        ):
+            sl_mask = (adata.obs[batch_key] == sl).values
+            X_new[sl_mask] = chunk
+        adata.X = X_new
+    else:
+        # No batch_key — single global normalize (same as before).
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+
     adata.layers['log1p'] = adata.X.copy()
-    print("Normalized (target_sum=1e4) and log1p transformed\n")
+    print("Per-slice normalized and log1p transformed\n")
 
     # ------------------------------------------------------------------ #
-    # Step 5: Feature selection                                            #
+    # Step 4: Feature selection                                            #
     # ------------------------------------------------------------------ #
-    print(">>> Step 5: Feature selection (HVGs)\n")
+    print(">>> Step 4: Feature selection (HVGs)\n")
 
     adata.raw = adata
     if batch_key is None:
@@ -358,9 +389,9 @@ def main():
     plt.close()
 
     # ------------------------------------------------------------------ #
-    # Step 6: Scaling                                                      #
+    # Step 5: Scaling                                                      #
     # ------------------------------------------------------------------ #
-    print(">>> Step 6: Scaling\n")
+    print(">>> Step 5: Scaling\n")
     # adata.layers["scaled"] = adata.X.toarray()
     # sc.pp.regress_out(adata, ["total_counts", "pct_counts_mt"], layer="scaled")
     # sc.pp.scale(adata, max_value=10, layer="scaled")
@@ -368,9 +399,9 @@ def main():
     print("Data scaled (max_value=10)\n")
 
     # ------------------------------------------------------------------ #
-    # Step 7: PCA                                                          #
+    # Step 6: PCA                                                          #
     # ------------------------------------------------------------------ #
-    print(">>> Step 7: PCA\n")
+    print(">>> Step 6: PCA\n")
 
     sc.tl.pca(adata, svd_solver="arpack", n_comps=50)
     print("Computed 50 PCs\n")
@@ -399,9 +430,9 @@ def main():
     plt.close()
 
     # ------------------------------------------------------------------ #
-    # Step 8: Batch correction (Harmony)                                   #
+    # Step 7: Batch correction (Harmony)                                   #
     # ------------------------------------------------------------------ #
-    print(">>> Step 8: Batch correction\n")
+    print(">>> Step 7: Batch correction\n")
 
     if batch_key is not None:
         try:
@@ -419,9 +450,9 @@ def main():
         print("No batch key specified, skipping batch correction\n")
 
     # ------------------------------------------------------------------ #
-    # Step 9: Neighbor graph                                               #
+    # Step 8: Neighbor graph                                               #
     # ------------------------------------------------------------------ #
-    print(">>> Step 9: Building neighbor graph\n")
+    print(">>> Step 8: Building neighbor graph\n")
 
     if 'X_pca_harmony' in adata.obsm:
         sc.pp.neighbors(adata, n_pcs=n_pcs, use_rep='X_pca_harmony')
@@ -431,9 +462,9 @@ def main():
         print("Using X_pca, n_pcs={}\n".format(n_pcs))
 
     # ------------------------------------------------------------------ #
-    # Step 10: Clustering                                                  #
+    # Step 9: Clustering                                                  #
     # ------------------------------------------------------------------ #
-    print(">>> Step 10: Clustering (Leiden)\n")
+    print(">>> Step 9: Clustering (Leiden)\n")
 
     for res in [0.2, 0.5, 0.8, 1.0, 1.2, 1.5]:
         sc.tl.leiden(adata, flavor='igraph', resolution=res, key_added="leiden_{}".format(res))
@@ -451,9 +482,9 @@ def main():
     print("Final resolution={}, {} clusters detected\n".format(resolution, n_clusters))
 
     # ------------------------------------------------------------------ #
-    # Step 11: UMAP visualization                                          #
+    # Step 10: UMAP visualization                                          #
     # ------------------------------------------------------------------ #
-    print(">>> Step 11: UMAP visualization\n")
+    print(">>> Step 10: UMAP visualization\n")
 
     sc.tl.umap(adata)
     if batch_key is not None:
@@ -465,9 +496,9 @@ def main():
     plt.close()
 
     # ------------------------------------------------------------------ #
-    # Step 12: Marker genes                                                #
+    # Step 11: Marker genes                                                #
     # ------------------------------------------------------------------ #
-    print(">>> Step 12: Marker gene identification\n")
+    print(">>> Step 11: Marker gene identification\n")
     print("Method: Wilcoxon rank-sum test (CPU)\n")
 
     sc.tl.rank_genes_groups(adata, "leiden", method="wilcoxon")
@@ -486,9 +517,9 @@ def main():
     print("Marker genes saved to {}all_markers.csv\n".format(prefix))
 
     # ------------------------------------------------------------------ #
-    # Step 13: Save results                                                #
+    # Step 12: Save results                                                #
     # ------------------------------------------------------------------ #
-    print(">>> Step 13: Saving results\n")
+    print(">>> Step 12: Saving results\n")
 
     output_file = "{}/{}preprocessed.h5ad".format(outpath, prefix)
     adata.write_h5ad(output_file, compression="gzip")
