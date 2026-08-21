@@ -249,9 +249,13 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 
 **QC 前后对比**：
 
-| QC 前 | QC 后 |
-|--------|--------|
-| ![before](Sol_test/02_concat/Sol_before_QC_violin.png) | ![after](Sol_test/02_concat/Sol_after_QC_violin.png) |
+**QC 前**：
+
+![before](Sol_test/02_concat/Sol_before_QC_violin.png)
+
+**QC 后**：
+
+![after](Sol_test/02_concat/Sol_after_QC_violin.png)
 
 ### 3.2 Step 03：下游分析（HVG、降维、聚类）
 

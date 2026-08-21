@@ -261,9 +261,13 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 
 **Before vs After QC**:
 
-| Before QC | After QC |
-|-----------|----------|
-| ![before](Sol_test/02_concat/Sol_before_QC_violin.png) | ![after](Sol_test/02_concat/Sol_after_QC_violin.png) |
+**Before QC**:
+
+![before](Sol_test/02_concat/Sol_before_QC_violin.png)
+
+**After QC**:
+
+![after](Sol_test/02_concat/Sol_after_QC_violin.png)
 
 ### 3.2 Step 03: Downstream analysis (HVG, dimensionality reduction, clustering)
 
