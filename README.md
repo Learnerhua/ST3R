@@ -55,8 +55,8 @@ The pipeline consists of 11 sequential Python scripts organized in three layers 
 | Step | Script | Conda Env | Input | Output | Key Tools |
 |------|--------|-----------|-------|--------|-----------|
 | 01 | `01_gef2h5ad.py` | `stereopy` | GEF file(s) / TSV config | `{sample}.h5ad` | stereo |
-| 02 | `02_concat.py` | `scanpy` | H5AD directory | `*_concated.h5ad` | anndata |
-| 03 | `03_preprocess.py` | `scanpy` | Concatenated H5AD | `*_preprocessed.h5ad` + QC plots | scanpy, harmonypy |
+| 02 | `02_concat.py` | `scanpy` | H5AD directory | `*_concated.h5ad` + QC plots | anndata, scanpy |
+| 03 | `03_preprocess.py` | `scanpy` | Concatenated H5AD | `*_preprocessed.h5ad` + clustering plots | scanpy, harmonypy |
 | 04 | `04_squidpy.py` | `scanpy` | Preprocessed H5AD | `*_squidpy.h5ad` + spatial domain plots | squidpy, scanpy |
 | 05 | `05_dataConvert.py` | `scanpy` | Squidpy H5AD | `*_compatible.h5ad` | scanpy |
 | 06 | `06_align.py` ⚡ | `spateo_env` | Compatible H5AD | `*_adata_aligned.h5ad` + alignment plots | spateo, torch (CUDA) |
@@ -176,7 +176,7 @@ For GPU setup, mirror configuration, troubleshooting, and detailed verification 
 
 > ⚠️ **Note**: The shell commands below are **reference examples only**. Parameter values (especially QC-related `-minC`, `-maxMT`) must be tuned to your specific dataset. Always run `./run.sh <script>.py --help` first to view the full parameter list.
 
-> **v2 change**: Step 03 no longer requires manual thresholds `-minG/-maxG/-minU/-maxU/-maxHB` — n_genes / total_counts cutoffs are derived automatically per slice (default 1%/99% quantiles, tunable via `-qL`/`-qH`). Only `-minC` (min cells per gene) and `-maxMT` (mitochondrial % cap) are needed. **v2 does not change the runtime environment — the published Docker/Singularity image (`oyjhlovedocker/spateo_tdr:v1`) remains applicable.**
+> **v2 change**: QC and normalization moved upstream to **Step 02** (executed per-sample before concatenation); Step 03 is now pure downstream analysis (HVG/dimensionality reduction/clustering) and no longer accepts QC parameters. Step 02 dropped manual thresholds `-minG/-maxG/-minU/-maxU/-maxHB` — n_genes / total_counts cutoffs are derived automatically per slice (default 1%/99% quantiles, tunable via `-qL`/`-qH`). Only `-minC` (min cells per gene) and `-maxMT` (mitochondrial % cap) are needed. **v2 does not change the runtime environment — the published Docker/Singularity image (`oyjhlovedocker/spateo_tdr:v1`) remains applicable.**
 
 > **Execution model**: The pipeline currently supports **manual step-by-step execution only**. Each step must be invoked explicitly via `./run.sh <script>.py ...` after the previous step's output exists. Do not attempt full-pipeline automation in a single command.
 
@@ -186,12 +186,12 @@ For GPU setup, mirror configuration, troubleshooting, and detailed verification 
 # Step 01: Convert GEF to H5AD
 ./Scripts/01_gef2h5ad.py -C rawData/sample_list.tsv -BT cell_bins -O Output/01_gef2h5ad
 
-# Step 02: Concatenate H5AD files
-./Scripts/02_concat.py -I Output/01_gef2h5ad -O Output/02_concat -P Sol_
-
-# Step 03: Preprocess (QC thresholds auto-computed per slice; optional -qL/-qH to adjust)
-./Scripts/03_preprocess.py -I Output/02_concat/Sol_concated.h5ad -BK slice_id -P Sol_ -O Output/03_preprocess \
+# Step 02: QC + normalization + concat (per-sample; QC thresholds auto-computed per slice, tune via -qL/-qH)
+./Scripts/02_concat.py -I Output/01_gef2h5ad -O Output/02_concat -P Sol_ \
     -minC 3 -maxMT 10
+
+# Step 03: Downstream analysis (HVG / dimensionality reduction / clustering; input X is log1p-normalized)
+./Scripts/03_preprocess.py -I Output/02_concat/Sol_concated.h5ad -BK batch -P Sol_ -O Output/03_preprocess
 
 # Step 04: Spatial domain detection
 ./Scripts/04_squidpy.py -I Output/03_preprocess/Sol_preprocessed.h5ad -LK slice_id -P Sol_ -O Output/04_squidpy \
@@ -240,8 +240,8 @@ Each step writes its outputs to a numbered subdirectory under `Output/`:
 | Step | Output Directory | Key Files |
 |------|------------------|-----------|
 | 01 | `Output/01_gef2h5ad/` | `{sample_id}.cellbin.h5ad` (one per sample) |
-| 02 | `Output/02_concat/` | `{prefix}_concated.h5ad` |
-| 03 | `Output/03_preprocess/` | `{prefix}_preprocessed.h5ad`, QC violin/scatter plots, PCA, UMAP, marker gene heatmap, `{prefix}_all_markers.csv` |
+| 02 | `Output/02_concat/` | `{prefix}_concated.h5ad` (X is log1p-normalized), QC violin/scatter plots (before/after) |
+| 03 | `Output/03_preprocess/` | `{prefix}_preprocessed.h5ad`, PCA, UMAP, marker gene heatmap, `{prefix}_all_markers.csv` |
 | 04 | `Output/04_squidpy/` | `{prefix}_squidpy.h5ad`, spatial domain grids, leiden comparison UMAP |
 | 05 | `Output/05_dataConvert/` | `{prefix}_compatible.h5ad` |
 | 06 | `Output/06_alignment/` | `{prefix}_adata_aligned.h5ad`, before/after alignment slice plots, overlap comparison |
@@ -257,13 +257,15 @@ Each step writes its outputs to a numbered subdirectory under `Output/`:
 
 A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example outputs:
 
-### 3.1 Step 03: Preprocessing (QC, Normalization, Clustering)
+### 3.1 Step 02: Quality control (per-sample)
 
 **Before vs After QC**:
 
 | Before QC | After QC |
 |-----------|----------|
-| ![before](Sol_test/03_preprocess/Sol_before_QC_violin.png) | ![after](Sol_test/03_preprocess/Sol_after_QC_violin.png) |
+| ![before](Sol_test/02_concat/Sol_before_QC_violin.png) | ![after](Sol_test/02_concat/Sol_after_QC_violin.png) |
+
+### 3.2 Step 03: Downstream analysis (HVG, dimensionality reduction, clustering)
 
 **PCA Variance & UMAP Clustering**:
 
@@ -375,8 +377,8 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 ├── run.sh                          # Conda-aware wrapper to invoke any step
 ├── Scripts/                        # Pipeline scripts (11 sequential steps)
 │   ├── 01_gef2h5ad.py              # Step 01: GEF → H5AD conversion
-│   ├── 02_concat.py                # Step 02: H5AD concatenation
-│   ├── 03_preprocess.py            # Step 03: per-slice QC + normalization + clustering
+│   ├── 02_concat.py                # Step 02: per-sample QC + normalization + concatenation
+│   ├── 03_preprocess.py            # Step 03: downstream analysis (HVG / dim-reduction / clustering)
 │   ├── 04_squidpy.py               # Step 04: Spatial domain detection
 │   ├── 05_dataConvert.py           # Step 05: H5AD cleaning
 │   ├── 06_align.py                 # Step 06: 3D alignment (GPU)
@@ -396,7 +398,8 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 │   ├── scanpy.yml
 │   └── spateo_env.yml
 └── Sol_test/                       # Reference test run outputs (33 slices)
-    ├── 03_preprocess/              # QC plots, UMAP, markers
+    ├── 02_concat/                  # QC plots (before/after violin + scatter)
+    ├── 03_preprocess/              # UMAP, PCA, markers
     ├── 04_squidpy/                 # Spatial domain grids
     ├── 06_alignment/               # Before/after alignment plots
     ├── 07_tdr/                     # 3D reconstruction outputs

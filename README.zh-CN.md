@@ -57,8 +57,8 @@
 | 步骤 | 脚本 | Conda 环境 | 输入 | 输出 | 关键工具 |
 |------|------|-----------|------|------|----------|
 | 01 | `01_gef2h5ad.py` | `stereopy` | GEF 文件 / TSV 配置 | `{sample}.h5ad` | stereo |
-| 02 | `02_concat.py` | `scanpy` | H5AD 目录 | `*_concated.h5ad` | anndata |
-| 03 | `03_preprocess.py` | `scanpy` | 合并后的 H5AD | `*_preprocessed.h5ad` + QC 图 | scanpy, harmonypy |
+| 02 | `02_concat.py` | `scanpy` | H5AD 目录 | `*_concated.h5ad` + QC 图 | anndata, scanpy |
+| 03 | `03_preprocess.py` | `scanpy` | 合并后的 H5AD | `*_preprocessed.h5ad` + 聚类图 | scanpy, harmonypy |
 | 04 | `04_squidpy.py` | `scanpy` | 预处理后的 H5AD | `*_squidpy.h5ad` + 空间域图 | squidpy, scanpy |
 | 05 | `05_dataConvert.py` | `scanpy` | Squidpy H5AD | `*_compatible.h5ad` | scanpy |
 | 06 | `06_align.py` ⚡ | `spateo_env` | 清洗后的 H5AD | `*_adata_aligned.h5ad` + 对齐图 | spateo, torch (CUDA) |
@@ -164,7 +164,7 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 
 > ⚠️ **注意**：以下 shell 命令仅为**参考示例**。参数值（尤其是 QC 相关的 `-minC`、`-maxMT`）需根据具体数据集调整。运行前请先执行 `./run.sh <script>.py --help` 查看完整参数列表。
 
-> **v2 变化**：Step 03 已移除手动阈值参数 `-minG/-maxG/-minU/-maxU/-maxHB`——n_genes / total_counts 阈值改为按切片自动分位数（默认 1%/99%，可用 `-qL`/`-qH` 调整）。只需提供 `-minC`（基因最少细胞数）和 `-maxMT`（线粒体比例上限）。**v2 未改变任何运行环境，已发布的 Docker / Singularity 镜像（`oyjhlovedocker/spateo_tdr:v1`）继续适用。**
+> **v2 变化**：质控与标准化已前移到 **Step 02**（per-sample 执行后合并）；Step 03 回归纯下游分析（HVG/降维/聚类），不再接收 QC 参数。Step 02 移除了手动阈值参数 `-minG/-maxG/-minU/-maxU/-maxHB`——n_genes / total_counts 阈值改为按切片自动分位数（默认 1%/99%，可用 `-qL`/`-qH` 调整），只需提供 `-minC`（基因最少细胞数）和 `-maxMT`（线粒体比例上限）。**v2 未改变任何运行环境，已发布的 Docker / Singularity 镜像（`oyjhlovedocker/spateo_tdr:v1`）继续适用。**
 
 > **执行模式**：本流水线当前**仅支持手动分步骤执行**。每一步需在前一步输出存在后，通过 `./run.sh <script>.py ...` 显式调用。请勿尝试在单条命令中自动化整个流水线。
 
@@ -174,12 +174,12 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 # Step 01：GEF 转 H5AD
 ./run.sh 01_gef2h5ad.py -C rawData/sample_list.tsv -BT cell_bins -O Output/01_gef2h5ad
 
-# Step 02：合并 H5AD 文件
-./run.sh 02_concat.py -I Output/01_gef2h5ad -O Output/02_concat -P Sol_
-
-# Step 03：预处理（QC 阈值按切片自动计算，可选 -qL/-qH 调整）
-./run.sh 03_preprocess.py -I Output/02_concat/Sol_concated.h5ad -BK slice_id -P Sol_ -O Output/03_preprocess \
+# Step 02：质控 + 标准化 + 合并（per-sample，QC 阈值按切片自动计算，可选 -qL/-qH 调整）
+./run.sh 02_concat.py -I Output/01_gef2h5ad -O Output/02_concat -P Sol_ \
     -minC 3 -maxMT 10
+
+# Step 03：下游分析（HVG / 降维 / 聚类，输入 X 已 log1p 标准化）
+./run.sh 03_preprocess.py -I Output/02_concat/Sol_concated.h5ad -BK batch -P Sol_ -O Output/03_preprocess
 
 # Step 04：空间域检测
 ./run.sh 04_squidpy.py -I Output/03_preprocess/Sol_preprocessed.h5ad -LK slice_id -P Sol_ -O Output/04_squidpy \
@@ -228,8 +228,8 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 | 步骤 | 输出目录 | 关键文件 |
 |------|----------|----------|
 | 01 | `Output/01_gef2h5ad/` | `{sample_id}.cellbin.h5ad`（每个样本一个） |
-| 02 | `Output/02_concat/` | `{prefix}_concated.h5ad` |
-| 03 | `Output/03_preprocess/` | `{prefix}_preprocessed.h5ad`，QC 小提琴图/散点图，PCA，UMAP，marker 基因热图，`{prefix}_all_markers.csv` |
+| 02 | `Output/02_concat/` | `{prefix}_concated.h5ad`（X 已 log1p 标准化），QC 小提琴图/散点图（before/after） |
+| 03 | `Output/03_preprocess/` | `{prefix}_preprocessed.h5ad`，PCA，UMAP，marker 基因热图，`{prefix}_all_markers.csv` |
 | 04 | `Output/04_squidpy/` | `{prefix}_squidpy.h5ad`，空间域网格图，Leiden 对比 UMAP |
 | 05 | `Output/05_dataConvert/` | `{prefix}_compatible.h5ad` |
 | 06 | `Output/06_alignment/` | `{prefix}_adata_aligned.h5ad`，对齐前后切片图，叠加对比 |
@@ -245,13 +245,15 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 
 `Sol_test/` 中包含一份完整的 33 个 Stereo-seq 切片测试运行示例。
 
-### 3.1 Step 03：预处理（QC、标准化、聚类）
+### 3.1 Step 02：质控（per-sample）
 
 **QC 前后对比**：
 
 | QC 前 | QC 后 |
 |--------|--------|
-| ![before](Sol_test/03_preprocess/Sol_before_QC_violin.png) | ![after](Sol_test/03_preprocess/Sol_after_QC_violin.png) |
+| ![before](Sol_test/02_concat/Sol_before_QC_violin.png) | ![after](Sol_test/02_concat/Sol_after_QC_violin.png) |
+
+### 3.2 Step 03：下游分析（HVG、降维、聚类）
 
 **PCA 方差解释与 UMAP 聚类**：
 
@@ -365,8 +367,8 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 ├── run.sh                          # Conda 感知包装脚本（调用任意步骤）
 ├── Scripts/                        # 流水线脚本（11 个顺序步骤）
 │   ├── 01_gef2h5ad.py              # Step 01：GEF → H5AD 转换
-│   ├── 02_concat.py                # Step 02：H5AD 合并
-│   ├── 03_preprocess.py            # Step 03：per-slice QC + 标准化 + 聚类
+│   ├── 02_concat.py                # Step 02：per-sample QC + 标准化 + 合并
+│   ├── 03_preprocess.py            # Step 03：下游分析（HVG / 降维 / 聚类）
 │   ├── 04_squidpy.py               # Step 04：空间域检测
 │   ├── 05_dataConvert.py           # Step 05：H5AD 清洗
 │   ├── 06_align.py                 # Step 06：3D 对齐（GPU）
@@ -386,7 +388,8 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 │   ├── scanpy.yml
 │   └── spateo_env.yml
 └── Sol_test/                       # 参考测试运行产物（33 个切片）
-    ├── 03_preprocess/              # QC 图、UMAP、marker
+    ├── 02_concat/                  # QC 图（before/after violin + scatter）
+    ├── 03_preprocess/              # UMAP、PCA、marker
     ├── 04_squidpy/                 # 空间域网格
     ├── 06_alignment/               # 对齐前后图
     ├── 07_tdr/                     # 3D 重建产物
