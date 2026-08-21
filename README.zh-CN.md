@@ -90,7 +90,7 @@
 ## 安装
 
 > ⚠️ **注意**：完整安装步骤请参见 **[INSTALL.zh-CN.md](INSTALL.zh-CN.md)**（[English](INSTALL.md)）。
-> 推荐使用容器镜像，可完整复现用于验证 `Sol_test/` 参考结果的环境。
+> 推荐使用容器镜像，可完整复现用于验证 `example/` 参考结果的环境。
 
 ### 方式 1 — 使用预构建容器镜像（推荐）
 
@@ -243,7 +243,7 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 
 ## 示例：参考测试运行（33 个切片）
 
-`Sol_test/` 中包含一份完整的 33 个 Stereo-seq 切片测试运行示例。
+`example/` 中包含一份完整的 33 个 Stereo-seq 切片测试运行示例。
 
 ### 3.1 Step 02：质控（per-sample）
 
@@ -251,11 +251,11 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 
 **QC 前**：
 
-![before](Sol_test/02_concat/Sol_before_QC_violin.png)
+![before](example/02_concat/Sol_before_QC_violin.png)
 
 **QC 后**：
 
-![after](Sol_test/02_concat/Sol_after_QC_violin.png)
+![after](example/02_concat/Sol_after_QC_violin.png)
 
 ### 3.2 Step 03：下游分析（HVG、降维、聚类）
 
@@ -263,7 +263,7 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 
 | PCA 方差解释率 | UMAP（Leiden）|
 |----------------|---------------|
-| ![pca_var](Sol_test/03_preprocess/Sol_pca_variance_ratio.png) | ![umap](Sol_test/03_preprocess/Sol_umap_leiden.png) |
+| ![pca_var](example/03_preprocess/Sol_pca_variance_ratio.png) | ![umap](example/03_preprocess/Sol_umap_leiden.png) |
 
 ---
 
@@ -271,11 +271,11 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 
 **空间域网格**：
 
-![domains_grid](Sol_test/04_squidpy/Sol_squidpy_domains_grid.png)
+![domains_grid](example/04_squidpy/Sol_squidpy_domains_grid.png)
 
 **Leiden vs Squidpy 空间域对比**：
 
-![leiden_squidpy](Sol_test/04_squidpy/Sol_leiden_squidpy.png)
+![leiden_squidpy](example/04_squidpy/Sol_leiden_squidpy.png)
 
 ---
 
@@ -283,15 +283,15 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 
 **对齐前**：
 
-![before](Sol_test/06_alignment/Sol_squidpy_2Dslices.png)
+![before](example/06_alignment/Sol_squidpy_2Dslices.png)
 
 **对齐后**：
 
-![after](Sol_test/06_alignment/Sol_aligned_2Dslices.png)
+![after](example/06_alignment/Sol_aligned_2Dslices.png)
 
 **对齐前后叠加对比**：
 
-![overlap](Sol_test/06_alignment/Sol_aligned_2Dslices_overlap.png)
+![overlap](example/06_alignment/Sol_aligned_2Dslices_overlap.png)
 
 ---
 
@@ -301,11 +301,11 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 
 | 点云 | 网格表面 | 体素 |
 |------|---------|------|
-| ![pc](Sol_test/07_tdr/Sol_aligned_pc_3D.png) | ![mesh](Sol_test/07_tdr/Sol_aligned_mesh_3D.png) | ![voxel](Sol_test/07_tdr/Sol_aligned_voxel_3D.png) |
+| ![pc](example/07_tdr/Sol_aligned_pc_3D.png) | ![mesh](example/07_tdr/Sol_aligned_mesh_3D.png) | ![voxel](example/07_tdr/Sol_aligned_voxel_3D.png) |
 
 **正交三视图投影**：
 
-![multi](Sol_test/07_tdr/Sol_aligned_pc_3D_multi.png)
+![multi](example/07_tdr/Sol_aligned_pc_3D_multi.png)
 
 ---
 
@@ -313,11 +313,11 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 
 | 主干 3D | 主干节点着色 |
 |---------|--------------|
-| ![bb3d](Sol_test/08_backbone/Sol_backbone_3D.png) | ![bb_area](Sol_test/08_backbone/Sol_backbone_area.png) |
+| ![bb3d](example/08_backbone/Sol_backbone_3D.png) | ![bb_area](example/08_backbone/Sol_backbone_area.png) |
 
 **Top 9 差异基因——GLM 拟合**：
 
-![glm_fit](Sol_test/08_backbone/Sol_top9Genes_glm_fit.png)
+![glm_fit](example/08_backbone/Sol_top9Genes_glm_fit.png)
 
 ---
 
@@ -325,7 +325,7 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 
 **细胞密度 KDE 热图**：
 
-![kde](Sol_test/09_Morph/Sol_aligned_pc_kde.png)
+![kde](example/09_Morph/Sol_aligned_pc_kde.png)
 
 ---
 
@@ -333,15 +333,15 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 
 **原始表达**：
 
-![raw](Sol_test/10_interpolation/Sol_aligned_raw_expr.png)
+![raw](example/10_interpolation/Sol_aligned_raw_expr.png)
 
 **GP 插值后表达**：
 
-![gp](Sol_test/10_interpolation/Sol_aligned_GP_interpolation.png)
+![gp](example/10_interpolation/Sol_aligned_GP_interpolation.png)
 
 **3D 切片视图**：
 
-![slices](Sol_test/10_interpolation/Sol_aligned_GP_interpolation_slices.png)
+![slices](example/10_interpolation/Sol_aligned_GP_interpolation_slices.png)
 
 ---
 
@@ -391,7 +391,7 @@ GPU 配置、镜像源、故障排查等详细说明见 **[INSTALL.zh-CN.md](INS
 │   ├── stereopy.yml
 │   ├── scanpy.yml
 │   └── spateo_env.yml
-└── Sol_test/                       # 参考测试运行产物（33 个切片）
+└── example/                       # 参考测试运行产物（33 个切片）
     ├── 02_concat/                  # QC 图（before/after violin + scatter）
     ├── 03_preprocess/              # UMAP、PCA、marker
     ├── 04_squidpy/                 # 空间域网格

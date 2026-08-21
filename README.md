@@ -101,7 +101,7 @@ pip install harmonypy scipy pandas numpy
 ## Installation
 
 > ⚠️ **Note**: For complete step-by-step instructions, see **[INSTALL.md](INSTALL.md)**.
-> The container image is the recommended path — it reproduces the exact environment used to validate `Sol_test/`.
+> The container image is the recommended path — it reproduces the exact environment used to validate `example/`.
 
 ### Option 1 — Prebuilt container image (recommended)
 
@@ -255,7 +255,7 @@ Each step writes its outputs to a numbered subdirectory under `Output/`:
 
 ## Example: Reference Test Run (33 Slices)
 
-A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example outputs:
+A complete test run on 33 Stereo-seq slices is included in `example/`. Example outputs:
 
 ### 3.1 Step 02: Quality control (per-sample)
 
@@ -263,11 +263,11 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 
 **Before QC**:
 
-![before](Sol_test/02_concat/Sol_before_QC_violin.png)
+![before](example/02_concat/Sol_before_QC_violin.png)
 
 **After QC**:
 
-![after](Sol_test/02_concat/Sol_after_QC_violin.png)
+![after](example/02_concat/Sol_after_QC_violin.png)
 
 ### 3.2 Step 03: Downstream analysis (HVG, dimensionality reduction, clustering)
 
@@ -275,7 +275,7 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 
 | PCA Variance Ratio | UMAP (Leiden) |
 |--------------------|---------------|
-| ![pca_var](Sol_test/03_preprocess/Sol_pca_variance_ratio.png) | ![umap](Sol_test/03_preprocess/Sol_umap_leiden.png) |
+| ![pca_var](example/03_preprocess/Sol_pca_variance_ratio.png) | ![umap](example/03_preprocess/Sol_umap_leiden.png) |
 
 ---
 
@@ -283,11 +283,11 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 
 **Spatial Domain Grid**:
 
-![domains_grid](Sol_test/04_squidpy/Sol_squidpy_domains_grid.png)
+![domains_grid](example/04_squidpy/Sol_squidpy_domains_grid.png)
 
 **Leiden vs Squidpy Domain Comparison**:
 
-![leiden_squidpy](Sol_test/04_squidpy/Sol_leiden_squidpy.png)
+![leiden_squidpy](example/04_squidpy/Sol_leiden_squidpy.png)
 
 ---
 
@@ -295,15 +295,15 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 
 **Before Alignment**:
 
-![before](Sol_test/06_alignment/Sol_squidpy_2Dslices.png)
+![before](example/06_alignment/Sol_squidpy_2Dslices.png)
 
 **After Alignment**:
 
-![after](Sol_test/06_alignment/Sol_aligned_2Dslices.png)
+![after](example/06_alignment/Sol_aligned_2Dslices.png)
 
 **Before/After Overlap Comparison**:
 
-![overlap](Sol_test/06_alignment/Sol_aligned_2Dslices_overlap.png)
+![overlap](example/06_alignment/Sol_aligned_2Dslices_overlap.png)
 
 ---
 
@@ -313,11 +313,11 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 
 | Point Cloud | Mesh Surface | Voxel |
 |-------------|--------------|-------|
-| ![pc](Sol_test/07_tdr/Sol_aligned_pc_3D.png) | ![mesh](Sol_test/07_tdr/Sol_aligned_mesh_3D.png) | ![voxel](Sol_test/07_tdr/Sol_aligned_voxel_3D.png) |
+| ![pc](example/07_tdr/Sol_aligned_pc_3D.png) | ![mesh](example/07_tdr/Sol_aligned_mesh_3D.png) | ![voxel](example/07_tdr/Sol_aligned_voxel_3D.png) |
 
 **Orthogonal Three-View Projection**:
 
-![multi](Sol_test/07_tdr/Sol_aligned_pc_3D_multi.png)
+![multi](example/07_tdr/Sol_aligned_pc_3D_multi.png)
 
 ---
 
@@ -325,11 +325,11 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 
 | Backbone 3D | Backbone Node Coloring |
 |-------------|------------------------|
-| ![bb3d](Sol_test/08_backbone/Sol_backbone_3D.png) | ![bb_area](Sol_test/08_backbone/Sol_backbone_area.png) |
+| ![bb3d](example/08_backbone/Sol_backbone_3D.png) | ![bb_area](example/08_backbone/Sol_backbone_area.png) |
 
 **Top 9 DE Genes — GLM Fit**:
 
-![glm_fit](Sol_test/08_backbone/Sol_top9Genes_glm_fit.png)
+![glm_fit](example/08_backbone/Sol_top9Genes_glm_fit.png)
 
 ---
 
@@ -337,7 +337,7 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 
 **Cell Density KDE Heatmap**:
 
-![kde](Sol_test/09_Morph/Sol_aligned_pc_kde.png)
+![kde](example/09_Morph/Sol_aligned_pc_kde.png)
 
 ---
 
@@ -345,15 +345,15 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 
 **Raw Expression**:
 
-![raw](Sol_test/10_interpolation/Sol_aligned_raw_expr.png)
+![raw](example/10_interpolation/Sol_aligned_raw_expr.png)
 
 **GP-Interpolated Expression**:
 
-![gp](Sol_test/10_interpolation/Sol_aligned_GP_interpolation.png)
+![gp](example/10_interpolation/Sol_aligned_GP_interpolation.png)
 
 **3D Slice Views**:
 
-![slices](Sol_test/10_interpolation/Sol_aligned_GP_interpolation_slices.png)
+![slices](example/10_interpolation/Sol_aligned_GP_interpolation_slices.png)
 
 ---
 
@@ -401,7 +401,7 @@ A complete test run on 33 Stereo-seq slices is included in `Sol_test/`. Example 
 │   ├── stereopy.yml
 │   ├── scanpy.yml
 │   └── spateo_env.yml
-└── Sol_test/                       # Reference test run outputs (33 slices)
+└── example/                       # Reference test run outputs (33 slices)
     ├── 02_concat/                  # QC plots (before/after violin + scatter)
     ├── 03_preprocess/              # UMAP, PCA, markers
     ├── 04_squidpy/                 # Spatial domain grids

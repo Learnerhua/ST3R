@@ -27,7 +27,7 @@ The pipeline ships with **two equivalent installation paths**:
 | **A. Prebuilt image** (Docker / Singularity) | Most users; cross-platform; reproducible | ~5 minutes (only image pull) |
 | **B. Manual conda envs** from `envs/*.yml` | Users who can't run containers, or need to modify dependencies | ~30-45 minutes (full env build) |
 
-If you have Docker or Singularity installed, **Method A is strongly recommended**. The image is identical to the environment used to produce the reference results shipped in `Sol_test/`, so all parameters have been validated against it.
+If you have Docker or Singularity installed, **Method A is strongly recommended**. The image is identical to the environment used to produce the reference results shipped in `example/`, so all parameters have been validated against it.
 
 ---
 
